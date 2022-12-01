@@ -10,5 +10,9 @@ measure(Fun, Times) ->
           {OldTime + Time, Value}
       end, {0, undefined}, lists:seq(0, Times)),
   AverageUsecs = Total / Times,
-  io:format("~s: ~p usecs~n", [erlang:fun_to_list(Fun), AverageUsecs]),
+  io:format("~s: ~p usecs (~p secs)~n",
+            [erlang:fun_to_list(Fun),
+             AverageUsecs,
+             AverageUsecs / 1000000.0
+            ]),
   {AverageUsecs, Value}.

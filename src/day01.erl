@@ -1,44 +1,38 @@
 -module(day01).
 
 -export([ solve/0
-        , solve_large/1
+        , solve_large/0
         ]).
 
 -include_lib("eunit/include/eunit.hrl").
 
+solve_large() ->
+  {ok, Bin} = file:read_file("aoc_2022_day01_large_input.txt"),
+  solve(Bin).
+
 solve() ->
-  MostCals =
-    lists:reverse(
-      lists:sort(
-        lists:map(
-          fun(ElfCals) ->
-              lists:foldl(fun(<<>>, Acc) ->
-                              Acc;
-                             (Cal, Acc) ->
-                              binary_to_integer(Cal) + Acc
-                          end, 0, binary:split(ElfCals, <<"\n">>, [global]))
-          end, binary:split(input:get(1), <<"\n\n">>, [global])))),
-  [P1, X2, X3|_] = MostCals,
-  P2 = P1 + X2 + X3,
-  {P1, P2}.
+  Bin = input:get(1),
+  solve(Bin).
 
-solve_large(Filename) ->
-  {ok, Bin} = file:read_file(Filename),
-  MostCals =
-    lists:reverse(
-      lists:sort(
-        lists:map(
-          fun(ElfCals) ->
-              lists:foldl(fun(<<>>, Acc) ->
-                              Acc;
-                             (Cal, Acc) ->
-                              binary_to_integer(Cal) + Acc
-                          end, 0, binary:split(ElfCals, <<"\n">>, [global]))
-          end, binary:split(Bin, <<"\n\n">>, [global])))),
-  [P1, X2, X3|_] = MostCals,
-  P2 = P1 + X2 + X3,
-  {P1, P2}.
+solve(Bin) ->
+  Items = binary:split(Bin, <<"\n">>, [global]),
+  State = {{0, 0, 0}, 0},
+  {{A, B, C}, _} = process_input(Items, State),
+  {A, A + B + C}.
 
+process_input([], State) ->
+  sort_abc(State);
+process_input([<<>>|Rest], State) ->
+  process_input(Rest, sort_abc(State));
+process_input([Num|Rest], {TopThree, Curr}) ->
+  process_input(Rest, {TopThree, Curr + binary_to_integer(Num)}).
+
+sort_abc({{A, B, C} = TopThree, Curr}) ->
+  if Curr > A -> {{Curr, A, B}, 0};
+     Curr > B -> {{A, Curr, B}, 0};
+     Curr > C -> {{A, B, Curr}, 0};
+     true -> {TopThree, 0}
+  end.
 
 -ifdef(TEST).
 
