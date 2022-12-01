@@ -1,0 +1,5 @@
+{application, aoc2022erl,
+ [{description, "AdventOfCode 2022 solutions in Erlang"},
+  {applications, [kernel, stdlib]},
+  {vsn, git}
+ ]}.
