@@ -4,6 +4,7 @@
         , solve_large/0
         ]).
 
+-compile({parse_transform, ct_expand}).
 -include_lib("eunit/include/eunit.hrl").
 
 solve_large() ->
@@ -11,7 +12,9 @@ solve_large() ->
   solve(Bin).
 
 solve() ->
-  Bin = input:get(1),
+  %% Use ct_expand:term/1 to inline the input binary into the beam
+  %% file
+  Bin = ct_expand:term(input:get(1)),
   solve(Bin).
 
 solve(Bin) ->
