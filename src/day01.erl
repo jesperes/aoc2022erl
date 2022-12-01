@@ -1,6 +1,8 @@
 -module(day01).
 
--export([solve/0]).
+-export([ solve/0
+        , solve_large/1
+        ]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -19,6 +21,24 @@ solve() ->
   [P1, X2, X3|_] = MostCals,
   P2 = P1 + X2 + X3,
   {P1, P2}.
+
+solve_large(Filename) ->
+  {ok, Bin} = file:read_file(Filename),
+  MostCals =
+    lists:reverse(
+      lists:sort(
+        lists:map(
+          fun(ElfCals) ->
+              lists:foldl(fun(<<>>, Acc) ->
+                              Acc;
+                             (Cal, Acc) ->
+                              binary_to_integer(Cal) + Acc
+                          end, 0, binary:split(ElfCals, <<"\n">>, [global]))
+          end, binary:split(Bin, <<"\n\n">>, [global])))),
+  [P1, X2, X3|_] = MostCals,
+  P2 = P1 + X2 + X3,
+  {P1, P2}.
+
 
 -ifdef(TEST).
 
