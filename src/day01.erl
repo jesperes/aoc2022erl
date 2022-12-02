@@ -12,10 +12,7 @@ solve_large() ->
   solve(Bin).
 
 solve() ->
-  %% Use ct_expand:term/1 to inline the input binary into the beam
-  %% file
-  Bin = ct_expand:term(input:get(1)),
-  solve(Bin).
+  solve(input:get(1)).
 
 solve(Bin) ->
   Items = binary:split(Bin, <<"\n">>, [global]),
