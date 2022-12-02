@@ -1,14 +1,13 @@
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <unistd.h>
-#include <time.h>
 
-#define handle_error(msg)                                       \
+#define handle_error(msg) \
   do { perror(msg); exit(EXIT_FAILURE); } while (0)
+
+void *do_mmap(const char *filename, int *fd, size_t *length);
+void do_munmap(int fd, void *addr, size_t length);
 
 int64_t now()
 {
@@ -26,29 +25,9 @@ typedef struct {
 } solution_t;
 
 void solve(const char *filename, solution_t *sol) {
-  char *addr;
-  int fd = -1;
-  struct stat sb;
-  off_t offset, pa_offset;
   size_t length;
-  ssize_t s;
-
-  fd = open(filename, O_RDONLY);
-  if (fd == -1)
-    handle_error("open");
-
-  if (fstat(fd, &sb) == -1)
-    handle_error("fstat");
-
-  offset = 0;
-  length = sb.st_size;
-
-  addr = mmap(NULL, length + offset, PROT_READ, MAP_PRIVATE, fd, 0);
-  if (addr == MAP_FAILED)
-    handle_error("mmap");
-
-  if (madvise(addr, length, MADV_SEQUENTIAL) != 0)
-    handle_error("madvise");
+  int fd;
+  char *addr = do_mmap(filename, &fd, &length);
 
   int64_t a = 0, b = 0, c = 0, curr = 0;
 
@@ -87,8 +66,7 @@ void solve(const char *filename, solution_t *sol) {
   sol->p1 = a;
   sol->p2 = a + b + c;
 
-  munmap(addr, length + offset);
-  close(fd);
+  do_munmap(fd, addr, length);
 }
 
 
