@@ -48,9 +48,31 @@ void solve(const char *filename, solution_t *sol) {
   sol->p1 = 0;
   sol->p2 = 0;
 
+  int o_rock = 0;
+  int o_paper = 1;
+  int o_scissors = 2;
+  int p_rock_or_lose = 1 << 2;
+  int p_paper_or_draw = 2 << 2;
+  int p_scissors_or_win = 3 << 2;
+
+  int p1_scores[1 << 5] = {0};
+  int p2_scores[1 << 5] = {0};
+
+  p1_scores[o_rock | p_rock_or_lose] = SCORE_ROCK + DRAW;
+  p2_scores[o_rock | p_rock_or_lose] = SCORE_SCISSORS + LOSE;
+
+  p1_scores[o_rock | p_paper_or_draw] = SCORE_PAPER + DRAW;
+  p2_scores[o_rock | p_paper_or_draw] = SCORE_ROCK + DRAW;
+
+  // ...
+
   for (int i = 0; i < length; i += 4) {
     int opponent = addr[i];
     int player = addr[i + 2];
+
+    int x = (opponent - 'A') | ((player - 'X') << 2);
+    sol->p1 += p1_scores[x];
+    sol->p2 += p2_scores[x];
 
     if (opponent == O_ROCK) {
       if (player == P_ROCK_OR_LOSE) {
@@ -98,7 +120,7 @@ int main(int argc, char **argv) {
   int64_t t0 = now();
   solve(filename, &sol);
   int64_t t1 = now();
-  printf("p1 = %ld, p2 = %ld, time = %.4g secs (%ld nsecs)\n",
-         sol.p1, sol.p2, ((double)(t1 - t0)) / 1000000000.0, (t1 - t0));
+  printf("p1 = %ld, p2 = %ld, time = %.2f usecs\n",
+         sol.p1, sol.p2, ((double)(t1 - t0)) / 1000);
   exit(EXIT_SUCCESS);
 }

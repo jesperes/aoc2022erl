@@ -76,9 +76,7 @@ int main(int argc, char **argv) {
   int64_t t0 = now();
   solve(filename, &sol);
   int64_t t1 = now();
-  printf("p1 = %ld, p2 = %ld, time = %.4g secs (%ld nsecs)\n",
-         sol.p1, sol.p2, ((double)(t1 - t0)) / 1000000000.0, (t1 - t0));
-  //assert(sol.p1 == 69836);
-  //assert(sol.p2 == 207968);
+  printf("p1 = %ld, p2 = %ld, time = %.4g usecs\n",
+         sol.p1, sol.p2, ((double)(t1 - t0)) / 1000.0);
   exit(EXIT_SUCCESS);
 }
