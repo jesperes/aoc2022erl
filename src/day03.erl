@@ -1,63 +1,64 @@
 -module(day03).
 
--export([solve/0]).
+-export([solve/0
+        ]).
+
+-compile([export_all, nowarn_export_all]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 solve() ->
   Bin = input:get(3),
   Items = binary:split(Bin, <<"\n">>, [global]),
-  P1 =
-    lists:foldl(
-      fun(Item, Sum) ->
-          Sum + set_intersection_prio(split2(Item))
-      end, 0, Items),
+  process_items(Items, {0, 0}).
 
-  P2 =
-    lists:foldl(
-      fun(Group, Sum) ->
-          Sum + set_intersection_prio(Group)
-      end, 0, chunks3(Items, [])),
+%% Process items in groups of three.
+process_items([], Acc) ->
+  Acc;
+process_items([<<>>], Acc) ->
+  Acc;
+process_items([A, B, C|Rest], {P1, P2}) ->
+  P1out = P1 + count1(A) + count1(B) + count1(C),
+  P2out = P2 + count2([A, B, C]),
+  process_items(Rest, {P1out, P2out}).
 
-  {P1, P2}.
+%% Find the sum of the priorities of the item common to the two halves
+%% of each rucksack.
+count1(Binary) ->
+  [Left, Right] = split2(Binary),
+  LeftMask = binary_to_mask(Left),
+  RightMask = binary_to_mask(Right),
+  mask_to_prio(LeftMask band RightMask).
 
-binary_to_set(Bin) ->
-  sets:from_list(binary_to_list(Bin)).
+%% Find the "badge" of each three-Elf group (the prio of the item
+%% common to all three rucksacks.
+count2([A, B, C]) ->
+  MaskA = binary_to_mask(A),
+  MaskB = binary_to_mask(B),
+  MaskC = binary_to_mask(C),
+  mask_to_prio(MaskA band MaskB band MaskC).
 
-set_intersection_prio([B1, B2]) ->
-  set_prio(sets:intersection(binary_to_set(B1),
-                             binary_to_set(B2)));
-set_intersection_prio([B1, B2, B3]) ->
-  set_prio(sets:intersection(
-             binary_to_set(B1),
-             sets:intersection(binary_to_set(B2),
-                               binary_to_set(B3)))).
+%% Convert a binary to a bitmap where the Nth bit is set is there is a
+%% char in the binary with prio N.
+binary_to_mask(<<>>) ->
+  0;
+binary_to_mask(<<C, Rest/binary>>) ->
+  (1 bsl prio(C)) bor binary_to_mask(Rest).
 
-set_prio(Set) ->
-  case sets:is_empty(Set) of
-    true -> 0;
-    false ->
-      [SetItem] = sets:to_list(Set),
-      prio(SetItem)
-  end.
+%% Find the position of the single bit set in the bitmask.
+mask_to_prio(Mask) ->
+  trunc(math:log2(Mask)).
 
-prio(Item) when Item >= $a andalso Item =< $z ->
-  Item - $a + 1;
-prio(Item) when Item >= $A andalso Item =< $Z ->
-  Item - $A + 27.
+prio(Item) when Item =< $Z ->
+   Item - $A + 27;
+prio(Item) ->
+  Item - $a + 1.
 
 split2(Item) ->
-  Len = byte_size(Item),
-  Half = Len div 2,
+  Half = byte_size(Item) div 2,
   Left = binary:part(Item, {0, Half}),
   Right = binary:part(Item, {Half, Half}),
   [Left, Right].
-
-chunks3([], Acc) ->
-  Acc;
-chunks3([<<>>], Acc) ->
-  Acc;
-chunks3([A, B, C|Rest], Acc) ->
-  chunks3(Rest, [[A, B, C]|Acc]).
 
 -ifdef(TEST).
 
