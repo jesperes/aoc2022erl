@@ -14,8 +14,8 @@ solve() ->
 
   P2 =
     lists:foldl(
-      fun({A, B, C}, Sum) ->
-          Sum + set_intersection_prio([A, B, C])
+      fun(Group, Sum) ->
+          Sum + set_intersection_prio(Group)
       end, 0, chunks3(Items, [])),
 
   {P1, P2}.
@@ -23,14 +23,22 @@ solve() ->
 binary_to_set(Bin) ->
   sets:from_list(binary_to_list(Bin)).
 
-set_intersection_prio(Binaries) ->
-  Sets = lists:map(fun binary_to_set/1, Binaries),
-  [First|Rest] = Sets,
-  Intersection = lists:foldl(fun sets:intersection/2, First, Rest),
-  lists:foldl(
-    fun(Item, Sum) ->
-        Sum + prio(Item)
-    end, 0, sets:to_list(Intersection)).
+set_intersection_prio([B1, B2]) ->
+  set_prio(sets:intersection(binary_to_set(B1),
+                             binary_to_set(B2)));
+set_intersection_prio([B1, B2, B3]) ->
+  set_prio(sets:intersection(
+             binary_to_set(B1),
+             sets:intersection(binary_to_set(B2),
+                               binary_to_set(B3)))).
+
+set_prio(Set) ->
+  case sets:is_empty(Set) of
+    true -> 0;
+    false ->
+      [SetItem] = sets:to_list(Set),
+      prio(SetItem)
+  end.
 
 prio(Item) when Item >= $a andalso Item =< $z ->
   Item - $a + 1;
@@ -49,7 +57,7 @@ chunks3([], Acc) ->
 chunks3([<<>>], Acc) ->
   Acc;
 chunks3([A, B, C|Rest], Acc) ->
-  chunks3(Rest, [{A, B, C}|Acc]).
+  chunks3(Rest, [[A, B, C]|Acc]).
 
 -ifdef(TEST).
 

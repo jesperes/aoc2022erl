@@ -1,6 +1,8 @@
 -module(aoc).
 
--export([measure/2]).
+-export([ measure/2
+        , timings/0
+        ]).
 
 measure(Fun, Times) ->
   {Total, Value} =
@@ -10,9 +12,31 @@ measure(Fun, Times) ->
           {OldTime + Time, Value}
       end, {0, undefined}, lists:seq(0, Times)),
   AverageUsecs = Total / Times,
-  io:format("~s: ~p usecs (~f secs)~n",
-            [erlang:fun_to_list(Fun),
-             floor(AverageUsecs),
-             AverageUsecs / 1000000.0
-            ]),
+  %% io:format("~s: ~p usecs (~f secs)~n",
+  %%           [erlang:fun_to_list(Fun),
+  %%            floor(AverageUsecs),
+  %%            AverageUsecs / 1000000.0
+  %%           ]),
   {AverageUsecs, Value}.
+
+
+timings() ->
+  Days = [{day01, 5000},
+          {day02, 5000},
+          {day03, 500}],
+  Str = "Day,Reps,Time (usecs),Time (msecs)\n" ++
+    lists:map(fun({Day, Reps}) ->
+                  {TimeUsecs, _} = measure(fun Day:solve/0, Reps),
+                  TimeMsecs = TimeUsecs / 1000,
+                  io_lib:format("~ts,~p,~p,~.5f~n", [Day, Reps, TimeUsecs, TimeMsecs])
+              end, Days),
+
+  Tempfile = "/tmp/tabulate",
+  ok = file:write_file(Tempfile, Str),
+  try
+    Cmd = io_lib:format("tabulate -f fancy_grid -s, -1 ~s", [Tempfile]),
+    Result = os:cmd(Cmd),
+    io:format("~ts~n", [Result])
+  after
+      ok = file:delete(Tempfile)
+  end.
