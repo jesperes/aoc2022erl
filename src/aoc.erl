@@ -11,14 +11,8 @@ measure(Fun, Times) ->
           {Time, Value} = timer:tc(Fun),
           {OldTime + Time, Value}
       end, {0, undefined}, lists:seq(0, Times)),
-  AverageUsecs = Total / Times,
-  %% io:format("~s: ~p usecs (~f secs)~n",
-  %%           [erlang:fun_to_list(Fun),
-  %%            floor(AverageUsecs),
-  %%            AverageUsecs / 1000000.0
-  %%           ]),
+  AverageUsecs = trunc(Total / Times),
   {AverageUsecs, Value}.
-
 
 timings() ->
   Days = [{day01, 5000},
