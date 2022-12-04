@@ -17,7 +17,8 @@ measure(Fun, Times) ->
 timings() ->
   Days = [{day01, 5000},
           {day02, 5000},
-          {day03, 3000}],
+          {day03, 3000},
+          {day04, 5000}],
   Str = "Day,Reps,Time (usecs),Time (msecs)\n" ++
     lists:map(fun({Day, Reps}) ->
                   {TimeUsecs, _} = measure(fun Day:solve/0, Reps),
