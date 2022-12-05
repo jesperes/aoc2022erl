@@ -5,25 +5,12 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-initial_state() ->
-  #{1 => [n, v, c, s],
-    2 => [s, n, h, j, m, z],
-    3 => [d, n, j, g, t, c, m],
-    4 => [m, r, w, j, f, d, t],
-    5 => [h, f, p],
-    6 => [j, h, z, t, c],
-    7 => [z, l, s, f, q, r, p, d],
-    8 => [w, p, f, d, h, l, s, c],
-    9 => [z, g, n, f, p, m, s, d]}.
-
 solve() ->
   Bin = input:get(5),
   Lines = binary:split(Bin, <<"\n">>, [global]),
-  Stacks1 = initial_state(),
-  Stacks2 = initial_state(),
-  move_crates(Lines, {Stacks1, Stacks2}).
+  move_crates(Lines).
 
-move_crates(Lines, Stacks) ->
+move_crates(Lines) ->
   {StacksOut1, StacksOut2} =
     lists:foldl(
       fun(<<"move ", Rest/binary>>, {Stacks1, Stacks2}) ->
@@ -34,16 +21,22 @@ move_crates(Lines, Stacks) ->
           To = binary_to_integer(ToBin),
           {move(What, From, To, Stacks1, fun lists:reverse/1),
            move(What, From, To, Stacks2, fun(L) -> L end)};
-         (_, StacksAcc) ->
-          StacksAcc
-      end, Stacks, Lines),
+         (<<>>, Stacks) when is_map(Stacks) ->
+          %% Input parsing complete, make two copies of the input
+          %% state, one for each puzzle part.
+          {Stacks, Stacks};
+         (<<>>, {_, _} = Stacks) ->
+          Stacks;
+         (CrateLine, StacksAcc) ->
+          parse_crate_line(CrateLine, 1, StacksAcc)
+      end, #{}, Lines),
   {top_crates(StacksOut1), top_crates(StacksOut2)}.
 
 top_crates(Stacks) ->
   lists:flatten(
     lists:map(
       fun({_, Stack}) ->
-          atom_to_list(hd(Stack))
+          hd(Stack)
       end,
       lists:sort(maps:to_list(Stacks)))).
 
@@ -52,9 +45,19 @@ move(What, From, To, Stacks, Fun) ->
   {Crates, Remaining} = lists:split(What, FromStack),
   Stacks#{From := Remaining, To := Fun(Crates) ++ ToStack}.
 
+parse_crate_line(<<$[, X, $], 32, Rest/binary>>, StackNum, Stacks) ->
+  StacksOut = maps:update_with(StackNum, fun(Old) -> Old ++ [X] end, [X], Stacks),
+  parse_crate_line(Rest, StackNum + 1, StacksOut); %% Reset stack num
+parse_crate_line(<<$[, X, $]>>, StackNum, Stacks) ->
+  maps:update_with(StackNum, fun(Old) -> Old ++ [X] end, [X], Stacks);
+parse_crate_line(<<32, 32, 32, 32, Rest/binary>>, StackNum, Stacks) ->
+  parse_crate_line(Rest, StackNum + 1, Stacks);
+parse_crate_line(<<32, $1, _/binary>>, _, Stacks) ->
+  Stacks.
+
 -ifdef(TEST).
 
 day05_test() ->
-  {"cnszfdvlj","qndwlmgns"} = solve().
+  {"CNSZFDVLJ","QNDWLMGNS"} = solve().
 
 -endif.
