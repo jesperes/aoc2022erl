@@ -17,6 +17,7 @@ get(1) -> ct_expand:term(do_get(1));
 get(2) -> ct_expand:term(do_get(2));
 get(3) -> ct_expand:term(do_get(3));
 get(4) -> ct_expand:term(do_get(4));
+get(5) -> ct_expand:term(do_get(5));
 get(N) ->
   do_get(N).
 

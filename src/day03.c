@@ -19,8 +19,8 @@ static int64_t now()
 }
 
 typedef struct {
-  int64_t p1;
-  int64_t p2;
+  int p1;
+  int p2;
 } solution_t;
 
 static int prio(char c) {
@@ -70,15 +70,14 @@ static int count2(const char *a, int alen, const char *b, int blen, const char *
 
 #define BUFSIZE 512
 
-void solve(const char *addr, int length, solution_t *sol)
+solution_t solve(const char *addr, int length)
 {
   const char *buf = addr;
-
-  sol->p1 = 0;
-  sol->p2 = 0;
+  const char *last = addr + length;
+  solution_t sol = { 0 };
 
   while (1) {
-    if (buf >= addr + length)
+    if (buf >= last)
       break;
 
     const char *p1 = buf;
@@ -90,27 +89,35 @@ void solve(const char *addr, int length, solution_t *sol)
     int p2len = p3 - p2 - 1;
     int p3len = buf - p3 - 1;
 
-    sol->p1 += count1(p1, p1len) + count1(p2, p2len) + count1(p3, p3len);
-    sol->p2 += count2(p1, p1len, p2, p2len, p3, p3len);
+    sol.p1 += count1(p1, p1len) + count1(p2, p2len) + count1(p3, p3len);
+    sol.p2 += count2(p1, p1len, p2, p2len, p3, p3len);
   }
+
+  return sol;
 }
 
 int main(int argc, char **argv)
 {
   const char *filename = argv[1];
-  solution_t sol = { 0 };
   size_t length;
   int fd;
   char *addr = do_mmap(filename, &fd, &length);
 
+  int64_t sum = 0;
+  for (int i = 0; i < length; i++) {
+    sum += addr[i];
+  }
+  printf("sum = %ld\n", sum);
+
+  solution_t sol;
   int reps = 10000;
   int64_t t0 = now();
   for (int i = 0; i < reps; i++) {
-    solve(addr, length, &sol);
+    sol = solve(addr, length);
   }
   int64_t t1 = now();
 
-  printf("p1 = %ld, p2 = %ld, time = %.2f usecs\n",
+  printf("p1 = %d, p2 = %d, time = %.2f usecs\n",
          sol.p1, sol.p2, (((double)(t1 - t0)) / 1000) / reps);
 
   do_munmap(fd, addr, length);

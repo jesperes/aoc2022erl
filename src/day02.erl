@@ -88,15 +88,12 @@ score_part2(Opp, ExpectedOutcome) ->
 
 solve() ->
   Bin = input:get(2),
-  Lines = binary:split(Bin, <<"\n">>, [global]),
+  do_solve(Bin, {0, 0}).
 
-  lists:foldl(
-    fun(<<Opp, _, Pl>>, {Score1, Score2}) ->
-        {Score1 + score_part1(Opp, Pl),
-         Score2 + score_part2(Opp, Pl)};
-       (<<>>, Acc) ->
-        Acc
-    end, {0, 0}, Lines).
+do_solve(<<>>, Acc) -> Acc;
+do_solve(<<Opp:8, _:8, Pl:8, _:8, Rest/binary>>, {Score1, Score2}) when is_binary(Rest) ->
+  do_solve(Rest, {Score1 + score_part1(Opp, Pl),
+                  Score2 + score_part2(Opp, Pl)}).
 
 -ifdef(TEST).
 

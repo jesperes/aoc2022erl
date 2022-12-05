@@ -25,7 +25,7 @@ process_items([A, B, C|Rest], {P1, P2}) ->
 %% Find the sum of the priorities of the item common to the two halves
 %% of each rucksack.
 count1(Binary) ->
-  [Left, Right] = split2(Binary),
+  {Left, Right} = erlang:split_binary(Binary, byte_size(Binary) div 2),
   LeftMask = binary_to_mask(Left),
   RightMask = binary_to_mask(Right),
   mask_to_prio(LeftMask band RightMask).
@@ -49,16 +49,10 @@ binary_to_mask(<<C, Rest/binary>>) ->
 mask_to_prio(Mask) ->
   trunc(math:log2(Mask)).
 
-prio(Item) when Item =< $Z ->
-   Item - $A + 27;
+prio(Item) when Item =< 90 ->
+  Item - 38;
 prio(Item) ->
-  Item - $a + 1.
-
-split2(Item) ->
-  Half = byte_size(Item) div 2,
-  Left = binary:part(Item, {0, Half}),
-  Right = binary:part(Item, {Half, Half}),
-  [Left, Right].
+  Item - 96.
 
 -ifdef(TEST).
 
