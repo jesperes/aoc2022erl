@@ -15,11 +15,12 @@ timings() ->
           case lists:member(Module, Loadable) of
             true ->
               %% Recompile and load it
-              {ok, _} = c:c(Module),
+              %% {ok, _} = c:c(Module),
               {true, Module};
             false -> false
           end
       end, lists:seq(1, 25)),
+  io:format("Erlang version: ~s~n", [erlang:system_info(version)]),
   erlperf_cli:main(
     ["-w", "5"] ++
       lists:map(fun(Day) ->
