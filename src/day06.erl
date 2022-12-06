@@ -13,32 +13,31 @@ solve() ->
 
 find_start_marker(<<>>, _MarkerSize, 0) ->
   not_found;
-find_start_marker(Bin, MarkerSize, N) ->
-  {<<_, RestMarker/binary>> = Marker, Rest} = erlang:split_binary(Bin, MarkerSize),
-  case all_different(Marker) of
+find_start_marker(<<_, Next/binary>> = Bin, MarkerSize, N) ->
+  case all_different(Bin, MarkerSize) of
     true ->
       N + MarkerSize;
     false ->
-      find_start_marker(<<RestMarker/binary, Rest/binary>>, MarkerSize, N + 1)
+      find_start_marker(Next, MarkerSize, N + 1)
   end.
 
-all_different(Binary) ->
-  all_different(Binary, 0).
+%% Check if the first `MarkerSize' bytes in `Bin' are different.
+all_different(Bin, MarkerSize) ->
+  all_different(Bin, byte_size(Bin) - MarkerSize, 0).
 
-all_different(<<>>, _) -> true;
-all_different(<<C, Rest/binary>>, Acc) ->
+all_different(Bin, N, _) when byte_size(Bin) == N ->
+  true;
+all_different(<<C, Rest/binary>>, N, Acc) ->
   Mask = 1 bsl (C - $a),
   if Mask band Acc == 0 ->
-      all_different(Rest, Mask bor Acc);
-     true -> false
+      all_different(Rest, N, Mask bor Acc);
+     true ->
+      false
   end.
 
 -ifdef(TEST).
 
 day06_test() ->
   {1802, 3551} = solve().
-
-d1_test() ->
-  ?assertEqual(5, find_start_marker(<<"bvwbjplbgvbhsrlpgdmjqwftvncz">>, 4, 0)).
 
 -endif.
