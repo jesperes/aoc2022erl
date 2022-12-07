@@ -33,9 +33,7 @@ to_tree([Line|Rest], #state{cwd = Cwd,
 
   case binary:split(Line, <<" ">>, [global]) of
     [<<"$">>, <<"cd">>, <<"/">>] ->
-      to_tree(Rest, State#state{cwd = ?ROOT,
-                                sizes = maps:put(?ROOT, 0, Sizes),
-                                sub_dirs = maps:put(?ROOT, [], Dirs)});
+      to_tree(Rest, State#state{cwd = ?ROOT});
     [<<"$">>, <<"cd">>, <<"..">>] ->
       to_tree(Rest, State#state{cwd = lists:sublist(Cwd, length(Cwd) - 1)});
     [<<"$">>, <<"cd">>, Dir] ->
@@ -46,11 +44,9 @@ to_tree([Line|Rest], #state{cwd = Cwd,
       FullDir = Cwd ++ [Dir],
       Dirs0 = maps:update_with(Cwd,
                                fun(Old) -> [FullDir|Old] end,
+                               [FullDir],
                                Dirs),
-      Dirs1 = maps:put(FullDir, [], Dirs0),
-      Sizes1 = maps:put(FullDir, 0, Sizes),
-      to_tree(Rest, State#state{sub_dirs = Dirs1,
-                                sizes = Sizes1});
+      to_tree(Rest, State#state{sub_dirs = Dirs0});
     [SizeBin, _File] ->
       Size = binary_to_integer(SizeBin),
       Sizes0 = maps:update_with(Cwd,
@@ -69,8 +65,9 @@ compute_sizes(Root, #state{sub_dirs = Dirs,
                   Acc0#state{sizes =
                                maps:update_with(Root,
                                                 fun(Old) -> Old + SubDirSize end,
+                                                SubDirSize,
                                                 Acc0#state.sizes)}
-              end, State, maps:get(Root, Dirs)).
+              end, State, maps:get(Root, Dirs, [])).
 
 
 -ifdef(TEST).
