@@ -7,8 +7,13 @@ input_filename(Day) ->
 
 -spec do_get(Day :: integer()) -> binary().
 do_get(Day) ->
-  {ok, Binary} = file:read_file(input_filename(Day)),
-  Binary.
+  Filename = input_filename(Day),
+  case file:read_file(Filename) of
+    {ok, Binary} -> Binary;
+    {error, enoent} ->
+      io:format("--- could not find input file ~s~n", [Filename]),
+      <<>>
+  end.
 
 -ifdef(INLINE_INPUTS).
 -compile({parse_transform, ct_expand}).

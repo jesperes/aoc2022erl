@@ -5,123 +5,73 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(TMP_DIR, "/tmp/day07").
+-record(state, {cwd = undefined,
+                sub_dirs = #{},
+                sizes = #{}
+               }).
+
+-define(ROOT, [<<"root">>]).
 
 solve() ->
   Bin = input:get(7),
-  %% Bin = <<"$ cd /\n"
-  %%         "$ ls\n"
-  %%         "dir a\n"
-  %%         "14848514 b.txt\n"
-  %%         "8504156 c.dat\n"
-  %%         "dir d\n"
-  %%         "$ cd a\n"
-  %%         "$ ls\n"
-  %%         "dir e\n"
-  %%         "29116 f\n"
-  %%         "2557 g\n"
-  %%         "62596 h.lst\n"
-  %%         "$ cd e\n"
-  %%         "$ ls\n"
-  %%         "584 i\n"
-  %%         "$ cd ..\n"
-  %%         "$ cd ..\n"
-  %%         "$ cd d\n"
-  %%         "$ ls\n"
-  %%         "4060174 j\n"
-  %%         "8033020 d.log\n"
-  %%         "5626152 d.ext\n"
-  %%         "7214296 k\n">>,
   Lines = binary:split(Bin, <<"\n">>, [global]),
-  {ok, Cwd} = file:get_cwd(),
-  try
-    to_tree(Lines),
-    {part1(?TMP_DIR), part2(?TMP_DIR)}
-  after
-    file:set_cwd(Cwd),
-    file:del_dir_r(?TMP_DIR)
-  end.
+  State = to_tree(Lines, #state{}),
+  P1 = lists:sum(
+         lists:filter(fun(Value) -> Value =< 100000 end,
+                      maps:values(State#state.sizes))),
+  TotalUsed = maps:get(?ROOT, State#state.sizes),
+  MaxFileSize = 40000000,
+  P2 = lists:min(
+         lists:filter(fun(Value) ->
+                          TotalUsed - Value =< MaxFileSize
+                      end, maps:values(State#state.sizes))),
+  {P1, P2}.
 
-to_tree([Line|Rest]) ->
+to_tree([Line|Rest], #state{cwd = Cwd,
+                            sub_dirs = Dirs,
+                            sizes = Sizes} = State) ->
+
   case binary:split(Line, <<" ">>, [global]) of
     [<<"$">>, <<"cd">>, <<"/">>] ->
-      file:del_dir_r(?TMP_DIR),
-      file:make_dir(?TMP_DIR),
-      file:set_cwd(?TMP_DIR),
-      to_tree(Rest);
+      to_tree(Rest, State#state{cwd = ?ROOT,
+                                sizes = maps:put(?ROOT, 0, Sizes),
+                                sub_dirs = maps:put(?ROOT, [], Dirs)});
     [<<"$">>, <<"cd">>, <<"..">>] ->
-      {ok, Cwd} = file:get_cwd(),
-      ok = file:set_cwd(filename:join(Cwd, "..")),
-      to_tree(Rest);
+      to_tree(Rest, State#state{cwd = lists:sublist(Cwd, length(Cwd) - 1)});
     [<<"$">>, <<"cd">>, Dir] ->
-      ok = file:set_cwd(Dir),
-      to_tree(Rest);
+      to_tree(Rest, State#state{cwd = Cwd ++ [Dir]});
     [<<"$">>, <<"ls">>] ->
-      to_tree(Rest);
+      to_tree(Rest, State);
     [<<"dir">>, Dir] ->
-      ok = case file:make_dir(binary_to_list(Dir)) of
-             ok -> ok;
-             {error, eexist} -> ok
-           end,
-      to_tree(Rest);
-    [Size, File] ->
-      Bits = binary_to_integer(Size) * 8,
-      Binary = <<0:Bits>>,
-      file:write_file(File, Binary),
-      ?assertEqual(binary_to_integer(Size), filelib:file_size(File)),
-      to_tree(Rest);
+      FullDir = Cwd ++ [Dir],
+      Dirs0 = maps:update_with(Cwd,
+                               fun(Old) -> [FullDir|Old] end,
+                               Dirs),
+      Dirs1 = maps:put(FullDir, [], Dirs0),
+      Sizes1 = maps:put(FullDir, 0, Sizes),
+      to_tree(Rest, State#state{sub_dirs = Dirs1,
+                                sizes = Sizes1});
+    [SizeBin, _File] ->
+      Size = binary_to_integer(SizeBin),
+      Sizes0 = maps:update_with(Cwd,
+                                fun(Old) -> Old + Size end,
+                                Size, Sizes),
+      to_tree(Rest, State#state{sizes = Sizes0});
     [<<>>] ->
-      ok
+      compute_sizes(?ROOT, State)
   end.
 
-rec_size(Name) ->
-  case filelib:is_dir(Name) of
-    true ->
-      {ok, Dirs} = file:list_dir(Name),
-      lists:foldl(fun(D, Acc) ->
-                      F = filename:join(Name, D),
-                      rec_size(F) + Acc
-                  end, 0, Dirs);
-    false ->
-      filelib:file_size(Name)
-  end.
+compute_sizes(Root, #state{sub_dirs = Dirs,
+                           sizes = _Sizes} = State) ->
+  lists:foldl(fun(SubDir, Acc) ->
+                  Acc0 = compute_sizes(SubDir, Acc),
+                  SubDirSize = maps:get(SubDir, Acc0#state.sizes),
+                  Acc0#state{sizes =
+                               maps:update_with(Root,
+                                                fun(Old) -> Old + SubDirSize end,
+                                                Acc0#state.sizes)}
+              end, State, maps:get(Root, Dirs)).
 
-fold_dirs(Fun, Acc, Root) ->
-  case filelib:is_dir(Root) of
-    false ->
-      Acc;
-    true ->
-      Acc0 = Fun(Root, Acc),
-      {ok, Dirs} = file:list_dir(Root),
-      lists:foldl(fun(D, InnerAcc) ->
-                      fold_dirs(Fun, InnerAcc, filename:join(Root, D))
-                  end, Acc0, Dirs)
-  end.
-
-part1(Root) ->
-  fold_dirs(fun(Dir, Acc) ->
-                case rec_size(Dir) of
-                  N when N =< 100000 ->
-                    Acc + N;
-                  _ ->
-                    Acc
-                end
-            end, 0, Root).
-
-part2(Root) ->
-  Used = rec_size(Root),
-  Total = 70000000,
-  CurrentFree = Total - Used,
-  NeededFree = 30000000,
-  fold_dirs(fun(Dir, Acc) ->
-                RecSize = rec_size(Dir),
-                FreeIfDeleted = (CurrentFree + RecSize),
-                if FreeIfDeleted >= NeededFree ->
-                    min(Acc, RecSize);
-                   true ->
-                    Acc
-                end
-            end, infinity, Root).
 
 -ifdef(TEST).
 

@@ -13,19 +13,35 @@ export APP=aoc2022erl
 rebar3 as $PROFILE "do" compile
 
 if [ "$#" -eq 0 ]; then
-    DAYS=(src/day*.erl)
+    DAYS=(priv/input*.txt)
 else
     DAYS=("$@")
 fi
 
+MODULES=()
+REBAR3_EUNIT_ARGS="--module="
 for d in "${DAYS[@]}"; do
-    DAY=$(echo "$d" | sed -e 's|.*/\(day.*\).erl|\1|')
+    DAY=$(echo "$d" | sed -e 's|.*/input\(.*\).txt|\1|')
+    MODULES+=("day$DAY")
+    REBAR3_EUNIT_ARGS="${REBAR3_EUNIT_ARGS},day$DAY"
+done
+
+echo "Found input files for puzzles: ${MODULES[*]}"
+echo "Running eunit tests..."
+
+if ! rebar3 as $PROFILE eunit "${REBAR3_EUNIT_ARGS}"; then
+    exit 1
+fi
+
+echo "Running erlperf..."
+
+for m in "${MODULES[@]}"; do
     CMD=("$HOME"/dev/erlperf/_build/default/bin/erlperf
-         "$DAY:solve()."
+         "$m:solve()."
          -pa "_build/$PROFILE/lib/$APP/ebin"
          -w 5
         )
-    if [ "$d" = "${DAYS[0]}" ]; then
+    if [ "$m" = "${MODULES[0]}" ]; then
         "${CMD[@]}"
     else
         "${CMD[@]}" | tail -n 1
