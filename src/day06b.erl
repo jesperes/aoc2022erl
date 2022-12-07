@@ -5,8 +5,6 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(to_key(Char), Char).
-
 solve() ->
   Bin = input:get(6),
   P1 = find_start_marker(Bin, 4),
@@ -34,14 +32,14 @@ find_start_marker(Bin, Out, Current, MarkerSize, Map) ->
   end.
 
 incr_map(Key, Map) ->
-  maps:update_with(?to_key(Key), fun(Old) -> Old + 1 end, 1, Map).
+  maps:update_with(Key, fun(Old) -> Old + 1 end, 1, Map).
 
 decr_or_delete(Key, Map) ->
-  case maps:get(?to_key(Key), Map) of
+  case maps:get(Key, Map) of
     1 ->
-      maps:remove(?to_key(Key), Map);
+      maps:remove(Key, Map);
     N ->
-      maps:put(?to_key(Key), N - 1, Map)
+      maps:put(Key, N - 1, Map)
   end.
 
 
