@@ -35,6 +35,8 @@ fi
 
 echo "Running erlperf..."
 
+TMPFILE=$(mktemp)
+
 for m in "${MODULES[@]}"; do
     CMD=("$HOME"/dev/erlperf/_build/default/bin/erlperf
          "$m:solve()."
@@ -42,8 +44,12 @@ for m in "${MODULES[@]}"; do
          -w 5
         )
     if [ "$m" = "${MODULES[0]}" ]; then
-        "${CMD[@]}"
+        "${CMD[@]}" | tee -a "$TMPFILE"
     else
-        "${CMD[@]}" | tail -n 1
+        "${CMD[@]}" | tail -n 1 | tee -a "$TMPFILE"
     fi
 done
+
+awk '{s+=$4} END {print "Total runtime", s, "us"}' <"$TMPFILE"
+
+rm -f "$TMPFILE"
