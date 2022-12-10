@@ -5,97 +5,51 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(START, {0, 0}).
-
--record(state, { rope = []
-               , visited = sets:from_list([?START])
+-record(state, { x = 1
+               , cycle = 1
+               , sum = 0
                }).
 
+-define(IS_INTERESTING_CYCLE(C),
+        (C == 20 orelse
+         C == 60 orelse
+         C == 100 orelse
+         C == 140 orelse
+         C == 180 orelse
+         C == 220)).
+
 solve() ->
-  Bin = input:get(9),
-  Lines = binary:split(Bin, <<"\n">>, [global]),
-  {simulate(Lines, 2), simulate(Lines, 10)}.
+  Bin = input:get(10),
+  Instrs = binary:split(Bin, <<"\n">>, [global]),
+  lists:foldl(fun(<<>>, Acc) ->
+                  Acc;
+                 (<<"noop">>, #state{x = X, cycle = C, sum = Sum} = State) when ?IS_INTERESTING_CYCLE(C) ->
+                  %%?debugFmt("    NOOP INTR: cycle=~p, x=~p, sum=~p, signal_strength=~p", [C, X, Sum, C * X]),
+                  State#state{cycle = C + 1, sum = Sum + (C * X)};
 
-simulate(Lines, NumKnots) ->
-  simulate0(Lines,
-           #state{rope = lists:map(fun(_) -> ?START end,
-                                   lists:seq(1, NumKnots))}).
+                 (<<"noop">>, #state{x = _X, cycle = C, sum = _Sum} = State) ->
+                  %%?debugFmt("NOOP NOT INTR: cycle=~p, x=~p, sum=~p", [C, X, Sum]),
+                  State#state{cycle = C + 1};
 
-simulate0(Lines, StateIn) ->
-  #state{visited = V} =
-    lists:foldl(fun(<<>>, State) -> State;
-                   (<<Dir, 32, Steps/binary>>, State) ->
-                    move(Dir, binary_to_integer(Steps), State)
-                end, StateIn, Lines),
-  sets:size(V).
+                 (<<"addx ", NumB/binary>>, #state{x = X, cycle = C, sum = Sum} = State) when ?IS_INTERESTING_CYCLE(C) ->
+                  Num = binary_to_integer(NumB),
+                  %%?debugFmt("         INTR: cycle=~p, x=~p, sum=~p, signal_strength=~p", [C, X, Sum, C * X]),
+                  State#state{cycle = C + 2, x = X + Num, sum = Sum + (C * X)};
 
-move(_, 0, State) ->
-  State;
-move(Dir, Steps, #state{rope = [H|Rest], visited = V} = State)  ->
-  NewHead = move(H, Dir),
-  NewRope = [NewHead|move_step(NewHead, Rest)],
-  Last = lists:nth(length(NewRope), NewRope),
-  move(Dir, Steps - 1, State#state{rope = NewRope,
-                                   visited = sets:add_element(Last, V)
-                                  }).
+                 (<<"addx ", NumB/binary>>, #state{x = X, cycle = C, sum = Sum} = State) when ?IS_INTERESTING_CYCLE(C + 1) ->
+                  Num = binary_to_integer(NumB),
+                  %%?debugFmt("         INTR: cycle=~p, x=~p, sum=~p, signal_strength=~p", [C, X, Sum, C * X]),
+                  State#state{cycle = C + 2, x = X + Num, sum = Sum + ((C + 1) * X)};
 
-move_step(_Towards, []) ->
-  [];
-move_step(Towards, [Head|Rest] = Rope) ->
-  case is_touching(Towards, Head) of
-    true ->
-      Rope;
-    false ->
-      NewTowards = NewHead = follow(Head, Towards),
-      [NewHead|move_step(NewTowards, Rest)]
-  end.
-
-is_touching({Xh, Yh}, {Xt, Yt}) ->
-  DistX = abs(Xh - Xt),
-  DistY = abs(Yh - Yt),
-  if DistX >= 2 orelse DistY >= 2 ->
-      false;
-     true ->
-      true
-  end.
-
-follow({Xt, Yt}, {Xh, Yh}) when Xt == Xh andalso Yh <  Yt -> {Xt, Yt - 1};
-follow({Xt, Yt}, {Xh, Yh}) when Xt <  Xh andalso Yh <  Yt -> {Xt + 1, Yt - 1};
-follow({Xt, Yt}, {Xh, Yh}) when Xt <  Xh andalso Yh == Yt -> {Xt + 1, Yt};
-follow({Xt, Yt}, {Xh, Yh}) when Xt <  Xh andalso Yh >  Yt -> {Xt + 1, Yt + 1};
-follow({Xt, Yt}, {Xh, Yh}) when Xt == Xh andalso Yh >  Yt -> {Xt, Yt + 1};
-follow({Xt, Yt}, {Xh, Yh}) when Xt >  Xh andalso Yh >  Yt -> {Xt - 1, Yt + 1};
-follow({Xt, Yt}, {Xh, Yh}) when Xt >  Xh andalso Yh == Yt -> {Xt - 1, Yt};
-follow({Xt, Yt}, {Xh, Yh}) when Xt >  Xh andalso Yh <  Yt -> {Xt - 1, Yt - 1}.
-
-move({X, Y}, $R) -> {X + 1, Y};
-move({X, Y}, $U) -> {X, Y - 1};
-move({X, Y}, $D) -> {X, Y + 1};
-move({X, Y}, $L) -> {X - 1, Y}.
-
-%% print(#state{rope = Rope, visited = _V} = State) ->
-%%   [H|_] = Rope,
-%%   %% Visited = lists:foldl(fun(Coord, Acc) ->
-%%   %%                           maps:put(Coord, $#, Acc)
-%%   %%                       end, #{},
-%%   {_, Map} = lists:foldl(fun(Knot, {N, Map}) ->
-%%                              {N + 1, maps:put(Knot, $0 + N, Map)}
-%%                          end, {0, #{?START => $s}}, Rope),
-
-%%   io:format("~nState = ~p~n", [State]),
-%%   io:format(grid:to_str(
-%%               maps:merge(Map, #{H => $H}))),
-%%   io:format("~n", []).
+                 (<<"addx ", NumB/binary>>, #state{x = X, cycle = C, sum = _Sum} = State) ->
+                  Num = binary_to_integer(NumB),
+                  %%?debugFmt("         INTR: cycle=~p, x=~p, sum=~p", [C, X, Sum]),
+                  State#state{cycle = C + 2, x = X + Num}
+                 end, #state{}, Instrs).
 
 -ifdef(TEST).
 
-is_touching_test() ->
-  ?assert(is_touching({0, 0}, {1, 0})),
-  ?assert(is_touching({0, 0}, {1, 1})),
-  ?assert(is_touching({0, 0}, {-1, 0})),
-  ?assert(is_touching({0, 0}, {-1, -1})).
-
-day09_test() ->
-  {6311, 2482} = solve().
+day10_test() ->
+  not_solved = solve().
 
 -endif.
