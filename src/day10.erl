@@ -25,6 +25,8 @@ solve() ->
   Instrs = binary:split(Bin, <<"\n">>, [global]),
   P1 = solve_p1(Instrs, #state{}),
   P2 = solve_p2(Instrs, #state{}),
+  %% io:format("~tp~n", [P2]),
+  %% io:format("~tp~n", [binary:split(P2, <<"\n">>, [global])]),
   {P1, P2}.
 
 solve_p1(Instrs, StateIn) ->
@@ -55,7 +57,7 @@ solve_p2(Instrs, StateIn) ->
     fun(Instr, #state{x = X, draw_pos = Pos, crt = CRT} = State) ->
         case Instr of
           <<>> ->
-            list_to_binary(grid:to_plain_str(State#state.crt));
+            unicode:characters_to_binary(grid:to_plain_str(State#state.crt));
           <<"noop">> ->
             CRT0 = draw(X, Pos, CRT),
             State#state{draw_pos = Pos + 1, crt = CRT0};
@@ -70,18 +72,18 @@ solve_p2(Instrs, StateIn) ->
 draw(X, Pos, CRT) when (Pos rem 40) == X - 1;
                        (Pos rem 40) == X;
                        (Pos rem 40) == X + 1 ->
-  maps:put({Pos rem 40, Pos div 40}, $#, CRT);
+  maps:put({Pos rem 40, Pos div 40}, $█, CRT);
 draw(_X, Pos, CRT) ->
-  maps:put({Pos rem 40, Pos div 40}, $., CRT).
+  maps:put({Pos rem 40, Pos div 40}, 32, CRT).
 
 -ifdef(TEST).
 
 day10_test() ->
-  {14060, <<"###...##..###..#..#.####.#..#.####...##.\n"
-            "#..#.#..#.#..#.#.#..#....#.#..#.......#.\n"
-            "#..#.#..#.#..#.##...###..##...###.....#.\n"
-            "###..####.###..#.#..#....#.#..#.......#.\n"
-            "#....#..#.#....#.#..#....#.#..#....#..#.\n"
-            "#....#..#.#....#..#.#....#..#.####..##..\n">>} = solve().
+  {14060, <<"███   ██  ███  █  █ ████ █  █ ████   ██ \n"
+            "█  █ █  █ █  █ █ █  █    █ █  █       █ \n"
+            "█  █ █  █ █  █ ██   ███  ██   ███     █ \n"
+            "███  ████ ███  █ █  █    █ █  █       █ \n"
+            "█    █  █ █    █ █  █    █ █  █    █  █ \n"
+            "█    █  █ █    █  █ █    █  █ ████  ██  \n"/utf8>>} = solve().
 
 -endif.
