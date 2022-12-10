@@ -27,6 +27,8 @@ count_trees(Bin, W, H) ->
 scenic_score(X, Y, Bin, W, H) ->
   TH = tree_height(Bin, W, X, Y),
 
+  %% TODO optimize: do not generate these lists up front, but iterate
+  %% using a coord-delta in view_dist()
   Northwards = [{X, Y0} || Y0 <- lists:seq(Y - 1, 0, -1)],
   Southwards = [{X, Y0} || Y0 <- lists:seq(Y + 1, H - 1)],
   Westwards = [{X0, Y} || X0 <-  lists:seq(X - 1, 0, -1)],
@@ -56,6 +58,8 @@ view_dist([{X, Y}|Trees], Bin, W, TH, Acc) ->
 is_tree_visible(X, Y, Bin, W, H) ->
   TH = tree_height(Bin, W, X, Y),
 
+  %% TODO optimize: do not generate these lists up front, but iterate
+  %% using a coord-delta in has_blocking_trees()
   Northwards = [{X, Y0} || Y0 <- lists:seq(0, Y - 1)],
   Southwards = [{X, Y0} || Y0 <- lists:seq(Y + 1, H - 1)],
   Westwards = [{X0, Y} || X0 <- lists:seq(0, X - 1)],

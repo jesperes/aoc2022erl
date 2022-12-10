@@ -24,8 +24,9 @@ get(3) -> ct_expand:term(do_get(3));
 get(4) -> ct_expand:term(do_get(4));
 get(5) -> ct_expand:term(do_get(5));
 get(6) -> ct_expand:term(do_get(6));
-get(N) ->
-  do_get(N).
+get(7) -> ct_expand:term(do_get(7));
+get(8) -> ct_expand:term(do_get(8));
+get(9) -> ct_expand:term(do_get(9)).
 
 -else.
 
