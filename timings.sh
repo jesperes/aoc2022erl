@@ -50,6 +50,30 @@ for m in "${MODULES[@]}"; do
     fi
 done
 
-awk '{s+=$4} END {print "Total runtime", s, "us"}' <"$TMPFILE"
+(( ns = 0 ))
+
+while read -r line; do
+    case "$line" in
+        *ms)
+            (( ns+=$(echo "$line" | awk '{print $4 * 1000000}') ))
+            ;;
+        *us)
+            (( ns+=$(echo "$line" | awk '{print $4 * 1000}') ))
+            ;;
+        *ns)
+            (( ns+=$(echo "$line" | awk '{print $4}') ))
+            ;;
+        Code*)
+            ;;
+        *)
+            echo "No match: $line"
+            exit 1
+            ;;
+    esac
+done < "$TMPFILE"
+
+(( usecs = ns / 1000 ))
+
+echo "Total runtime: $usecs us"
 
 rm -f "$TMPFILE"

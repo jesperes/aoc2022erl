@@ -42,7 +42,7 @@ contains([A0, A1], [B0, B1]) ->
 
 -ifdef(TEST).
 
-day03_test() ->
+day04_test() ->
   {582, 893} = solve().
 
 -endif.

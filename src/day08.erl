@@ -5,96 +5,98 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(DELTAS, [{0, -1}, {0, 1}, {-1, 0}, {1, 0}]).
+-define(VALID_COORD(X, Y, W, H),
+        ((X >= 0)
+         andalso (X < W)
+         andalso (Y < H)
+         andalso (Y >= 0))).
+
 solve() ->
   Bin = input:get(8),
-  {W, Rows} = split(Bin),
-  H = length(Rows) - 1,
-  count_trees(Bin, W, H).
+  Dim = get_dimensions(Bin),
+  count_trees(Bin, Dim).
 
-count_trees(Bin, W, H) ->
-  lists:foldl(fun({X, Y}, {Visible, ScenicScore}) ->
-                  Visible0 =
-                    case is_tree_visible(X, Y, Bin, W, H) of
-                      true -> Visible + 1;
-                      false -> Visible
-                    end,
-                  ScenicScore0 = max(ScenicScore, scenic_score(X, Y, Bin, W, H)),
-                  {Visible0, ScenicScore0}
-              end, {0, 0},
-              [{X, Y} || X <- lists:seq(0, W - 1),
-                         Y <- lists:seq(0, H - 1)]).
+foldxy(Fun, Init, {W, H} = _Dim) ->
+  foldrange(fun(Y, Acc) ->
+                foldrange(fun(X, InnerAcc) ->
+                              Fun({X, Y}, InnerAcc)
+                          end, Acc, 0, W)
+            end, Init, 0, H).
 
-scenic_score(X, Y, Bin, W, H) ->
-  TH = tree_height(Bin, W, X, Y),
-
-  %% TODO optimize: do not generate these lists up front, but iterate
-  %% using a coord-delta in view_dist()
-  Northwards = [{X, Y0} || Y0 <- lists:seq(Y - 1, 0, -1)],
-  Southwards = [{X, Y0} || Y0 <- lists:seq(Y + 1, H - 1)],
-  Westwards = [{X0, Y} || X0 <-  lists:seq(X - 1, 0, -1)],
-  Eastwards = [{X0, Y} || X0 <- lists:seq(X + 1, W - 1)],
-
-  ViewDistNorth = view_dist(Northwards, Bin, W, TH, 0),
-  ViewDistSouth = view_dist(Southwards, Bin, W, TH, 0),
-  ViewDistWest = view_dist(Westwards, Bin, W, TH, 0),
-  ViewDistEast = view_dist(Eastwards, Bin, W, TH, 0),
-
-  ViewDistNorth * ViewDistSouth * ViewDistEast * ViewDistWest.
-
-view_dist([], _Bin, _W, _TH, Acc) ->
+foldrange(_Fun, Acc, Curr, Max) when Curr == Max ->
   Acc;
-view_dist([{X, Y}|Trees], Bin, W, TH, Acc) ->
-  case tree_height(Bin, W, X, Y) of
+foldrange(Fun, Acc, Curr, Max) ->
+  foldrange(Fun, Fun(Curr, Acc), Curr + 1, Max).
+
+count_trees(Bin, Dim) ->
+  foldxy(fun(Pos, {Visible, ScenicScore}) ->
+             Visible0 =
+               case is_tree_visible(Pos, Bin, Dim) of
+                 true -> Visible + 1;
+                 false -> Visible
+               end,
+             ScenicScore0 = max(ScenicScore, scenic_score(Pos, Bin, Dim)),
+             {Visible0, ScenicScore0}
+         end, {0, 0}, Dim).
+
+scenic_score(Pos, Bin, Dim) ->
+  TH = tree_height(Bin, Dim, Pos),
+  lists:foldl(fun(Delta, Acc) ->
+                  Acc * view_dist(incr(Pos, Delta), Delta, Bin, Dim, TH, 0)
+              end, 1, ?DELTAS).
+
+view_dist({X, Y}, _Delta, _Bin, {W, H}, _TH, Acc) when not ?VALID_COORD(X, Y, W, H) ->
+  Acc;
+view_dist(Pos, Delta, Bin, Dim, TH, Acc) ->
+  case tree_height(Bin, Dim, Pos) of
     TH0 when TH0 >= TH ->
       %% Tree blocks the view: we can see this tree, but no
       %% further
       Acc + 1;
     _ ->
       %% Tree is lower: we can see this tree, and beyond.
-      view_dist(Trees, Bin, W, TH, Acc + 1)
+      view_dist(incr(Pos, Delta), Delta, Bin, Dim, TH, Acc + 1)
   end.
 
-
-is_tree_visible(X, Y, Bin, W, H) ->
-  TH = tree_height(Bin, W, X, Y),
-
-  %% TODO optimize: do not generate these lists up front, but iterate
-  %% using a coord-delta in has_blocking_trees()
-  Northwards = [{X, Y0} || Y0 <- lists:seq(0, Y - 1)],
-  Southwards = [{X, Y0} || Y0 <- lists:seq(Y + 1, H - 1)],
-  Westwards = [{X0, Y} || X0 <- lists:seq(0, X - 1)],
-  Eastwards = [{X0, Y} || X0 <- lists:seq(X + 1, W - 1)],
-
-  lists:any(fun(TreeList) ->
-                not has_blocking_trees(TreeList, Bin, W, TH)
+is_tree_visible(Pos, Bin, Dim) ->
+  TH = tree_height(Bin, Dim, Pos),
+  lists:any(fun(Delta) ->
+                not has_blocking_trees(incr(Pos, Delta), Delta, Bin, Dim, TH)
             end,
-            [Northwards,
-             Southwards,
-             Westwards,
-             Eastwards]).
+            ?DELTAS).
 
-has_blocking_trees(Trees, Bin, W, TH) ->
-  lists:any(fun({X, Y}) ->
-                tree_height(Bin, W, X, Y) >= TH
-            end, Trees).
+has_blocking_trees({X, Y}, _Delta, _Bin, {W, H}, _TH) when not ?VALID_COORD(X, Y, W, H) ->
+  false;
+has_blocking_trees(Pos, Delta, Bin, Dim, TH) ->
+  case tree_height(Bin, Dim, Pos) of
+    TH0 when TH0 >= TH ->
+      true;
+    _ ->
+      has_blocking_trees(incr(Pos, Delta), Delta, Bin, Dim, TH)
+  end.
 
-split(Bin) ->
+incr({X, Y}, {Dx, Dy}) ->
+  {X + Dx, Y + Dy}.
+
+get_dimensions(Bin) ->
   Rows = [First|_] = binary:split(Bin, <<"\n">>, [global]),
   W = byte_size(First),
-  {W, Rows}.
+  H = length(Rows) - 1,
+  {W, H}.
 
-tree_height(Bin, W, X, Y) ->
+tree_height(Bin, {W, _H}, {X, Y}) ->
   binary:at(Bin, Y * (W + 1) + X) - $0.
 
 -ifdef(TEST).
 
 tree_height_test() ->
   Bin = input:get(8),
-  {W, _} = split(Bin),
-  ?assertEqual(1, tree_height(Bin, W, 98, 0)),
-  ?assertEqual(3, tree_height(Bin, W, 0, 1)),
-  ?assertEqual(1, tree_height(Bin, W, 0, 98)),
-  ?assertEqual(3, tree_height(Bin, W, 98, 98)).
+  Dim = get_dimensions(Bin),
+  ?assertEqual(1, tree_height(Bin, Dim, {98, 0})),
+  ?assertEqual(3, tree_height(Bin, Dim, {0, 1})),
+  ?assertEqual(1, tree_height(Bin, Dim, {0, 98})),
+  ?assertEqual(3, tree_height(Bin, Dim, {98, 98})).
 
 day08_test() ->
   {1684,486540} = solve().
