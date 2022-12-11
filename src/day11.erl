@@ -5,119 +5,136 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(ITEMS_TAG, 1).
+-define(OPFUN_TAG, 2).
+-define(TRUE_TAG,  3).
+-define(FALSE_TAG, 4).
+-define(DIV_TAG,   5).
+-define(COUNT_TAG, 6).
+
+-define(TAG_MASK,   (16#F bsl 16)).
+
+-define(ITEMS_MASK, (?ITEMS_TAG bsl 16)).
+-define(OPFUN_MASK, (?OPFUN_TAG bsl 16)).
+-define(TRUE_MASK,  (?TRUE_TAG bsl 16)).
+-define(FALSE_MASK, (?FALSE_TAG bsl 16)).
+-define(DIV_MASK,   (?DIV_TAG bsl 16)).
+-define(COUNT_MASK, (?COUNT_TAG bsl 16)).
+
+-define(ITEMS_KEY(N), (?ITEMS_MASK bor N)).
+-define(OPFUN_KEY(N), (?OPFUN_MASK bor N)).
+-define(TRUE_KEY(N),  (?TRUE_MASK  bor N)).
+-define(FALSE_KEY(N), (?FALSE_MASK bor N)).
+-define(DIV_KEY(N),   (?DIV_MASK   bor N)).
+-define(COUNT_KEY(N), (?COUNT_MASK bor N)).
+
+-define(SET_START_ITEMS(N, Ints, Map), maps:put(?ITEMS_KEY(Num0), Ints, Map)).
+-define(SET_OPFUN(N, OpFun, Map), maps:put(?OPFUN_KEY(Num0), OpFun, Map)).
+-define(SET_TRUE(N, Val, Map), maps:put(?TRUE_KEY(Num0), Val, Map)).
+-define(SET_FALSE(N, Val, Map), maps:put(?FALSE_KEY(Num0), Val, Map)).
+-define(SET_DIV(N, Val, Map), maps:put(?DIV_KEY(Num0), Val, Map)).
+-define(INCR_COUNT(N, Map), maps:update_with(?COUNT_KEY(Num), fun(Old) -> Old + 1 end, 1, Map)).
+
+
 parse(Bin) ->
-  List = split(Bin, <<"\n\n">>),
+  List = split(Bin, <<"\n">>),
   lists:foldl(
-    fun(Monkey, Acc) ->
-        Lines = split(Monkey, <<"\n">>),
-        M = lists:foldl(
-              fun(<<>>, Acc0) -> Acc0;
-                 (Line, Acc0) ->
-                  [Left, Right] = split(Line, <<":">>),
-                  Left0 = trim(Left),
-                  Right0 = trim(Right),
-                  case Left0 of
-                    "Monkey " ++ Num ->
-                      maps:put(num, list_to_integer(Num), Acc0);
-                    "Starting items" ->
-                      maps:put(items,
-                               lists:map(fun(N) ->
-                                             list_to_integer(string:trim(N))
-                                         end, string:split(Right0, ",", all)),
-                               Acc0);
-                    "Operation" ->
-                      Op =
-                        case string:split(Right0, " ", all) of
-                          ["new", "=", "old", "*", "old"] ->
-                            fun(Old) -> Old * Old end;
-                          ["new", "=", "old", "*", OldStr] ->
-                            fun(Old) -> Old * list_to_integer(string:trim(OldStr)) end;
-                          ["new", "=", "old", "+", OldStr] ->
-                            fun(Old) -> Old + list_to_integer(string:trim(OldStr)) end
-                        end,
-                      maps:put(op, Op, Acc0);
-                    "If " ++ TrueOrFalseStr ->
-                      TrueOrFalse = list_to_atom(TrueOrFalseStr),
-                      ?assert((TrueOrFalse =:= true) orelse
-                              (TrueOrFalse =:= false)),
-                      "throw to monkey " ++ MonkeyNum = Right0,
-                      maps:put(TrueOrFalse, list_to_integer(MonkeyNum), Acc0);
-                    "Test" ->
-                      "divisible by " ++ Div = Right0,
-                      maps:put(test, list_to_integer(Div), Acc0)
-                  end
-              end, #{}, Lines),
-        maps:put(maps:get(num, M), M, Acc)
-    end, #{}, List).
+    fun(<<>>, Acc0) -> Acc0;
+       (Line, {Num0, Acc0}) ->
+        case Line of
+          <<"Monkey ", Num:8, ":">> ->
+            {Num - $0, Acc0};
+          <<"  Starting items: ", Rest/binary>> ->
+            Items = lists:map(fun(<<" ", N/binary>>) ->
+                                  binary_to_integer(N);
+                                 (N) ->
+                                  binary_to_integer(N)
+                              end, split(Rest, <<",">>)),
+            {Num0, ?SET_START_ITEMS(Num0, Items, Acc0)};
+          <<"  Operation: ", Rest/binary>> ->
+            Op =
+              case split(Rest, <<" ">>) of
+                [<<"new">>, <<"=">>, <<"old">>, <<"*">>, <<"old">>] ->
+                  fun(Old) -> Old * Old end;
+                [<<"new">>, <<"=">>, <<"old">>, <<"*">>, OldStr] ->
+                  fun(Old) -> Old * binary_to_integer(OldStr) end;
+                [<<"new">>, <<"=">>, <<"old">>, <<"+">>, OldStr] ->
+                  fun(Old) -> Old + binary_to_integer(OldStr) end
+              end,
+            {Num0, ?SET_OPFUN(Num0, Op, Acc0)};
+          <<"  Test: divisible by ", Rest/binary>> ->
+            {Num0, ?SET_DIV(Num0, binary_to_integer(Rest), Acc0)};
+          <<"    If true: throw to monkey ", Rest/binary>> ->
+            {Num0, ?SET_TRUE(Num0, binary_to_integer(Rest), Acc0)};
+          <<"    If false: throw to monkey ", Rest/binary>> ->
+            {Num0, ?SET_FALSE(Num0, binary_to_integer(Rest), Acc0)}
+        end
+    end, {0, #{}}, List).
 
 solve() ->
   Bin = input:get(11),
-  Monkeys = parse(Bin),
+  {N, Map} = parse(Bin),
 
   %% The divisors are all prime, so LCM is just the product of them
-  LCM = maps:fold(fun(_, #{test := Div}, Acc) ->
-                      Div * Acc
-                  end, 1, Monkeys),
+  LCM = maps:fold(fun(Key, Div, Acc) when Key band ?DIV_MASK == ?DIV_MASK ->
+                      Div * Acc;
+                     (_, _, Acc) -> Acc
+                  end, 1, Map),
 
-  P1 = simulate(Monkeys, #{}, 20, fun(L) -> L div 3 end),
-  P2 = simulate(Monkeys, #{}, 10000, fun(L) -> L rem LCM end),
+  P1 = simulate(Map, N, _Rounds1 = 20,    _OpFun1 = {'div', 3}),
+  P2 = simulate(Map, N, _Rounds2 = 10000, _OpFun2 = {'rem', LCM}),
   {P1, P2}.
 
-simulate(_Monkeys, ItemCounts, 0, _ReduceFun) ->
-  [X1, X2|_] = lists:reverse(lists:sort(maps:values(ItemCounts))),
-  X1 * X2;
-simulate(Monkeys, ItemCounts, N, ReduceFun) ->
-  {MonkeysOut, ItemCountsOut} =
+solution(Map) ->
+  ItemCounts =
+    maps:fold(fun(K, V, Acc) when K band ?TAG_MASK == ?COUNT_MASK ->
+                  [V|Acc];
+                 (_, _, Acc) ->
+                  Acc
+              end, [], Map),
+  [X1, X2|_] = lists:reverse(lists:sort(ItemCounts)),
+  X1 * X2.
+
+simulate(Map, _N, 0, _ReduceFun) ->
+  solution(Map);
+simulate(Map, N, Round, {ReduceOp, ReduceNum} = ReduceFun) ->
+  MapOut =
     lists:foldl(
-      fun(MonkeyNum, {Monkeys0, ItemCounts0}) ->
-          #{items := Items,
-            op := OpFun,
-            true := IfTrue,
-            false := IfFalse,
-            test := DivisibleBy} = maps:get(MonkeyNum, Monkeys0),
+      fun(Num, Map0) ->
+          Items = maps:get(?ITEMS_KEY(Num), Map0),
+          OpFun = maps:get(?OPFUN_KEY(Num), Map0),
+          DivisibleBy = maps:get(?DIV_KEY(Num), Map0),
+          IfTrue = maps:get(?TRUE_KEY(Num), Map0),
+          IfFalse = maps:get(?FALSE_KEY(Num), Map0),
 
-          Monkeys00 =
-            maps:update_with(
-              MonkeyNum,
-              fun(OldMonkey) -> maps:put(items, [], OldMonkey) end,
-              Monkeys0),
+          %% Clear the monkey's items
+          Map1 = maps:put(?ITEMS_KEY(Num), [], Map0),
 
-          %% This inner fold is per-item
           lists:foldl(
-            fun(Item, {Monkeys1, ItemCounts1}) ->
+            fun(Item, Map2) ->
                 WorryLevel = OpFun(Item),
-                WorryLevel0 = ReduceFun(WorryLevel),
-                ThrowTo = if WorryLevel0 rem DivisibleBy == 0 ->
-                              IfTrue;
-                             true ->
-                              IfFalse
+                WorryLevel0 = if ReduceOp =:= 'div' -> WorryLevel div ReduceNum;
+                                 true -> WorryLevel rem ReduceNum
+                              end,
+                ThrowTo = if WorryLevel0 rem DivisibleBy == 0 -> IfTrue;
+                             true -> IfFalse
                           end,
-                M0 = maps:update_with(
-                       ThrowTo,
-                       fun(DestMonkey) ->
-                           maps:update_with(items,
-                                            fun(Old) -> Old ++ [WorryLevel0] end,
-                                            [WorryLevel0],
-                                            DestMonkey)
-                       end, Monkeys1),
-                IC0 = maps:update_with(
-                        MonkeyNum,
-                        fun(Old) -> Old + 1 end,
-                        1,
-                        ItemCounts1),
-                {M0, IC0}
-              end, {Monkeys00, ItemCounts0}, Items)
-      end, {Monkeys, ItemCounts}, lists:sort(maps:keys(Monkeys))),
 
-  simulate(MonkeysOut, ItemCountsOut, N - 1, ReduceFun).
+                Map3 = maps:update_with(?ITEMS_KEY(ThrowTo),
+                                        fun(Old) -> Old ++ [WorryLevel0] end,
+                                        [WorryLevel0],
+                                        Map2),
 
--ifdef(TEST).
+                ?INCR_COUNT(Num, Map3)
+              end, Map1, Items)
+      end, Map, lists:seq(0, N)),
 
-trim(Binary) ->
-  string:trim(binary_to_list(Binary)).
+  simulate(MapOut, N, Round - 1, ReduceFun).
 
 split(Binary, Sep) ->
   binary:split(Binary, Sep, [global]).
+
+-ifdef(TEST).
 
 day11_test() ->
   {102399, 23641658401} = solve().
