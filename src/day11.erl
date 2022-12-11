@@ -28,12 +28,12 @@
 -define(DIV_KEY(N),   (?DIV_MASK   bor N)).
 -define(COUNT_KEY(N), (?COUNT_MASK bor N)).
 
--define(SET_START_ITEMS(N, Ints, Map), maps:put(?ITEMS_KEY(Num0), Ints, Map)).
+-define(SET_ITEMS(N, Ints, Map), maps:put(?ITEMS_KEY(Num0), Ints, Map)).
 -define(SET_OPFUN(N, OpFun, Map), maps:put(?OPFUN_KEY(Num0), OpFun, Map)).
 -define(SET_TRUE(N, Val, Map), maps:put(?TRUE_KEY(Num0), Val, Map)).
 -define(SET_FALSE(N, Val, Map), maps:put(?FALSE_KEY(Num0), Val, Map)).
 -define(SET_DIV(N, Val, Map), maps:put(?DIV_KEY(Num0), Val, Map)).
--define(INCR_COUNT(N, Map), maps:update_with(?COUNT_KEY(Num), fun(Old) -> Old + 1 end, 1, Map)).
+-define(INCR_COUNT(N, Incr, Map), maps:update_with(?COUNT_KEY(Num), fun(Old) -> Old + Incr end, Incr, Map)).
 
 
 parse(Bin) ->
@@ -45,12 +45,13 @@ parse(Bin) ->
           <<"Monkey ", Num:8, ":">> ->
             {Num - $0, Acc0};
           <<"  Starting items: ", Rest/binary>> ->
-            Items = lists:map(fun(<<" ", N/binary>>) ->
-                                  binary_to_integer(N);
-                                 (N) ->
-                                  binary_to_integer(N)
-                              end, split(Rest, <<",">>)),
-            {Num0, ?SET_START_ITEMS(Num0, Items, Acc0)};
+            Items = lists:reverse(
+                      lists:map(fun(<<" ", N/binary>>) ->
+                                    binary_to_integer(N);
+                                   (N) ->
+                                    binary_to_integer(N)
+                                end, split(Rest, <<",">>))),
+            {Num0, ?SET_ITEMS(Num0, Items, Acc0)};
           <<"  Operation: ", Rest/binary>> ->
             Op =
               case split(Rest, <<" ">>) of
@@ -101,14 +102,15 @@ simulate(Map, N, Round, {ReduceOp, ReduceNum} = ReduceFun) ->
   MapOut =
     lists:foldl(
       fun(Num, Map0) ->
-          Items = maps:get(?ITEMS_KEY(Num), Map0),
+          Items = lists:reverse(maps:get(?ITEMS_KEY(Num), Map0)),
           OpFun = maps:get(?OPFUN_KEY(Num), Map0),
           DivisibleBy = maps:get(?DIV_KEY(Num), Map0),
           IfTrue = maps:get(?TRUE_KEY(Num), Map0),
           IfFalse = maps:get(?FALSE_KEY(Num), Map0),
 
-          %% Clear the monkey's items
+          %% Clear the monkey's items, and increment the count
           Map1 = maps:put(?ITEMS_KEY(Num), [], Map0),
+          Map1b = ?INCR_COUNT(Num, length(Items), Map1),
 
           lists:foldl(
             fun(Item, Map2) ->
@@ -120,13 +122,11 @@ simulate(Map, N, Round, {ReduceOp, ReduceNum} = ReduceFun) ->
                              true -> IfFalse
                           end,
 
-                Map3 = maps:update_with(?ITEMS_KEY(ThrowTo),
-                                        fun(Old) -> Old ++ [WorryLevel0] end,
-                                        [WorryLevel0],
-                                        Map2),
-
-                ?INCR_COUNT(Num, Map3)
-              end, Map1, Items)
+                maps:update_with(?ITEMS_KEY(ThrowTo),
+                                 fun(Old) -> [WorryLevel0|Old] end,
+                                 [WorryLevel0],
+                                 Map2)
+              end, Map1b, Items)
       end, Map, lists:seq(0, N)),
 
   simulate(MapOut, N, Round - 1, ReduceFun).
