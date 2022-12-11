@@ -5,6 +5,11 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(USE_BITOPS, false).
+
+-ifdef(USE_BITOPS).
+
+-define(WIDTH, 8).
 -define(ITEMS_TAG, 1).
 -define(OPFUN_TAG, 2).
 -define(TRUE_TAG,  3).
@@ -12,14 +17,14 @@
 -define(DIV_TAG,   5).
 -define(COUNT_TAG, 6).
 
--define(TAG_MASK,   (16#F bsl 16)).
+-define(TAG_MASK,   (16#F bsl ?WIDTH)).
 
--define(ITEMS_MASK, (?ITEMS_TAG bsl 16)).
--define(OPFUN_MASK, (?OPFUN_TAG bsl 16)).
--define(TRUE_MASK,  (?TRUE_TAG bsl 16)).
--define(FALSE_MASK, (?FALSE_TAG bsl 16)).
--define(DIV_MASK,   (?DIV_TAG bsl 16)).
--define(COUNT_MASK, (?COUNT_TAG bsl 16)).
+-define(ITEMS_MASK, (?ITEMS_TAG bsl ?WIDTH)).
+-define(OPFUN_MASK, (?OPFUN_TAG bsl ?WIDTH)).
+-define(TRUE_MASK,  (?TRUE_TAG bsl ?WIDTH)).
+-define(FALSE_MASK, (?FALSE_TAG bsl ?WIDTH)).
+-define(DIV_MASK,   (?DIV_TAG bsl ?WIDTH)).
+-define(COUNT_MASK, (?COUNT_TAG bsl ?WIDTH)).
 
 -define(ITEMS_KEY(N), (?ITEMS_MASK bor N)).
 -define(OPFUN_KEY(N), (?OPFUN_MASK bor N)).
@@ -28,13 +33,40 @@
 -define(DIV_KEY(N),   (?DIV_MASK   bor N)).
 -define(COUNT_KEY(N), (?COUNT_MASK bor N)).
 
--define(SET_ITEMS(N, Ints, Map), maps:put(?ITEMS_KEY(Num0), Ints, Map)).
--define(SET_OPFUN(N, OpFun, Map), maps:put(?OPFUN_KEY(Num0), OpFun, Map)).
--define(SET_TRUE(N, Val, Map), maps:put(?TRUE_KEY(Num0), Val, Map)).
--define(SET_FALSE(N, Val, Map), maps:put(?FALSE_KEY(Num0), Val, Map)).
--define(SET_DIV(N, Val, Map), maps:put(?DIV_KEY(Num0), Val, Map)).
--define(INCR_COUNT(N, Incr, Map), maps:update_with(?COUNT_KEY(Num), fun(Old) -> Old + Incr end, Incr, Map)).
+-define(IS_COUNT(Key), (Key band ?TAG_MASK == ?COUNT_MASK)).
+-define(IS_DIV(Key), (Key band ?TAG_MASK == ?DIV_MASK)).
 
+-else.
+
+-define(ITEMS_KEY(N), {item, N}).
+-define(OPFUN_KEY(N), {opfun, N}).
+-define(TRUE_KEY(N),  {true, N}).
+-define(FALSE_KEY(N), {false, N}).
+-define(DIV_KEY(N),   {'div', N}).
+-define(COUNT_KEY(N), {count, N}).
+
+-define(IS_COUNT(Key), (is_tuple(Key) andalso element(1, Key) == count)).
+-define(IS_DIV(Key),   (is_tuple(Key) andalso element(1, Key) == 'div')).
+
+-endif.
+
+-define(INIT_STATE, #{}).
+
+%% Modifiers
+-define(SET_ITEMS(N, Ints, Map), maps:put(?ITEMS_KEY(N), Ints, Map)).
+-define(ADD_ITEM(N, Item, Map), maps:update_with(?ITEMS_KEY(N), fun(Old) -> [Item|Old] end, [Item], Map)).
+-define(SET_OPFUN(N, OpFun, Map), maps:put(?OPFUN_KEY(N), OpFun, Map)).
+-define(SET_TRUE(N, Val, Map), maps:put(?TRUE_KEY(N), Val, Map)).
+-define(SET_FALSE(N, Val, Map), maps:put(?FALSE_KEY(N), Val, Map)).
+-define(SET_DIV(N, Val, Map), maps:put(?DIV_KEY(N), Val, Map)).
+-define(INCR_COUNT(N, Incr, Map), maps:update_with(?COUNT_KEY(N), fun(Old) -> Old + Incr end, Incr, Map)).
+
+%% Readers
+-define(GET_ITEMS(N, Map), maps:get(?ITEMS_KEY(N), Map)).
+-define(GET_OPFUN(N, Map), maps:get(?OPFUN_KEY(N), Map)).
+-define(GET_TRUE(N, Map), maps:get(?TRUE_KEY(N), Map)).
+-define(GET_FALSE(N, Map), maps:get(?FALSE_KEY(N), Map)).
+-define(GET_DIV(N, Map), maps:get(?DIV_KEY(N), Map)).
 
 parse(Bin) ->
   List = split(Bin, <<"\n">>),
@@ -70,14 +102,14 @@ parse(Bin) ->
           <<"    If false: throw to monkey ", Rest/binary>> ->
             {Num0, ?SET_FALSE(Num0, binary_to_integer(Rest), Acc0)}
         end
-    end, {0, #{}}, List).
+    end, {0, ?INIT_STATE}, List).
 
 solve() ->
   Bin = input:get(11),
   {N, Map} = parse(Bin),
 
   %% The divisors are all prime, so LCM is just the product of them
-  LCM = maps:fold(fun(Key, Div, Acc) when Key band ?DIV_MASK == ?DIV_MASK ->
+  LCM = maps:fold(fun(Key, Div, Acc) when ?IS_DIV(Key) ->
                       Div * Acc;
                      (_, _, Acc) -> Acc
                   end, 1, Map),
@@ -88,7 +120,7 @@ solve() ->
 
 solution(Map) ->
   ItemCounts =
-    maps:fold(fun(K, V, Acc) when K band ?TAG_MASK == ?COUNT_MASK ->
+    maps:fold(fun(K, V, Acc) when ?IS_COUNT(K) ->
                   [V|Acc];
                  (_, _, Acc) ->
                   Acc
@@ -102,11 +134,11 @@ simulate(Map, N, Round, {ReduceOp, ReduceNum} = ReduceFun) ->
   MapOut =
     lists:foldl(
       fun(Num, Map0) ->
-          Items = lists:reverse(maps:get(?ITEMS_KEY(Num), Map0)),
-          OpFun = maps:get(?OPFUN_KEY(Num), Map0),
-          DivisibleBy = maps:get(?DIV_KEY(Num), Map0),
-          IfTrue = maps:get(?TRUE_KEY(Num), Map0),
-          IfFalse = maps:get(?FALSE_KEY(Num), Map0),
+          Items = ?GET_ITEMS(Num, Map0),
+          OpFun = ?GET_OPFUN(Num, Map0),
+          DivisibleBy = ?GET_DIV(Num, Map0),
+          IfTrue = ?GET_TRUE(Num, Map0),
+          IfFalse = ?GET_FALSE(Num, Map0),
 
           %% Clear the monkey's items, and increment the count
           Map1 = maps:put(?ITEMS_KEY(Num), [], Map0),
@@ -122,11 +154,8 @@ simulate(Map, N, Round, {ReduceOp, ReduceNum} = ReduceFun) ->
                              true -> IfFalse
                           end,
 
-                maps:update_with(?ITEMS_KEY(ThrowTo),
-                                 fun(Old) -> [WorryLevel0|Old] end,
-                                 [WorryLevel0],
-                                 Map2)
-              end, Map1b, Items)
+                ?ADD_ITEM(ThrowTo, WorryLevel0, Map2)
+              end, Map1b, lists:reverse(Items))
       end, Map, lists:seq(0, N)),
 
   simulate(MapOut, N, Round - 1, ReduceFun).
