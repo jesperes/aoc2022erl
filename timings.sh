@@ -10,7 +10,7 @@ echo "ERLANG VERSION: $(erl_version)"
 export PROFILE=inline
 export APP=aoc2022erl
 
-rebar3 as $PROFILE "do" compile,escriptize,dialyzer
+rebar3 as $PROFILE "do" compile,escriptize
 
 if [ "$#" -eq 0 ]; then
     DAYS=(priv/input*.txt)
