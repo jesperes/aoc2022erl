@@ -10,7 +10,7 @@ echo "ERLANG VERSION: $(erl_version)"
 export PROFILE=inline
 export APP=aoc2022erl
 
-rebar3 as $PROFILE "do" compile
+rebar3 as $PROFILE "do" compile,escriptize,dialyzer
 
 if [ "$#" -eq 0 ]; then
     DAYS=(priv/input*.txt)
@@ -33,47 +33,4 @@ if ! rebar3 as $PROFILE eunit "${REBAR3_EUNIT_ARGS}"; then
     exit 1
 fi
 
-echo "Running erlperf..."
-
-TMPFILE=$(mktemp)
-
-for m in "${MODULES[@]}"; do
-    CMD=("$HOME"/dev/erlperf/_build/default/bin/erlperf
-         "$m:solve()."
-         -pa "_build/$PROFILE/lib/$APP/ebin"
-         -w 5
-        )
-    if [ "$m" = "${MODULES[0]}" ]; then
-        "${CMD[@]}" | tee -a "$TMPFILE"
-    else
-        "${CMD[@]}" | tail -n 1 | tee -a "$TMPFILE"
-    fi
-done
-
-(( ns = 0 ))
-
-while read -r line; do
-    case "$line" in
-        *ms)
-            (( ns+=$(echo "$line" | awk '{print $4 * 1000000}') ))
-            ;;
-        *us)
-            (( ns+=$(echo "$line" | awk '{print $4 * 1000}') ))
-            ;;
-        *ns)
-            (( ns+=$(echo "$line" | awk '{print $4}') ))
-            ;;
-        Code*)
-            ;;
-        *)
-            echo "No match: $line"
-            exit 1
-            ;;
-    esac
-done < "$TMPFILE"
-
-(( usecs = ns / 1000 ))
-
-echo "Total runtime: $usecs us"
-
-rm -f "$TMPFILE"
+_build/$PROFILE/bin/aoc2022erl "${MODULES[@]}"

@@ -70,10 +70,11 @@ simulate(Monkeys, ItemCounts, N, ReduceFun) ->
   {MonkeysOut, ItemCountsOut} =
     lists:foldl(
       fun(MonkeyNum, {Monkeys0, ItemCounts0}) ->
-          CurrMonkey =
-            #{items := Items,
-              op := OpFun,
-              test := DivisibleBy} = maps:get(MonkeyNum, Monkeys0),
+          #{items := Items,
+            op := OpFun,
+            true := IfTrue,
+            false := IfFalse,
+            test := DivisibleBy} = maps:get(MonkeyNum, Monkeys0),
 
           Monkeys00 =
             maps:update_with(
@@ -86,7 +87,11 @@ simulate(Monkeys, ItemCounts, N, ReduceFun) ->
             fun(Item, {Monkeys1, ItemCounts1}) ->
                 WorryLevel = OpFun(Item),
                 WorryLevel0 = ReduceFun(WorryLevel),
-                ThrowTo = maps:get(WorryLevel0 rem DivisibleBy == 0, CurrMonkey),
+                ThrowTo = if WorryLevel0 rem DivisibleBy == 0 ->
+                              IfTrue;
+                             true ->
+                              IfFalse
+                          end,
                 M0 = maps:update_with(
                        ThrowTo,
                        fun(DestMonkey) ->
