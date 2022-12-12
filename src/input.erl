@@ -28,7 +28,8 @@ get(7) -> ct_expand:term(do_get(7));
 get(8) -> ct_expand:term(do_get(8));
 get(9) -> ct_expand:term(do_get(9));
 get(10) -> ct_expand:term(do_get(10));
-get(11) -> ct_expand:term(do_get(11)).
+get(11) -> ct_expand:term(do_get(11));
+get(12) -> ct_expand:term(do_get(12)).
 
 -else.
 
