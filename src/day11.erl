@@ -12,10 +12,17 @@
                 , on_false
                 }).
 
--record(state, { monkeys = []
-               , items = #{}
-               , counts = #{}
-               , num
+-type monkey() :: #monkey{ num :: integer()
+                         , divisible_by :: integer()
+                         , opfun :: fun((integer()) -> integer())
+                         , on_true :: integer()
+                         , on_false :: integer()
+                         }.
+
+-record(state, { monkeys = [] :: [monkey()]
+               , items = #{} :: #{integer => [integer()]}
+               , counts :: counters:counters_ref() | undefined
+               , num :: integer() | undefined
                }).
 
 parse(Bin) ->
@@ -60,26 +67,37 @@ parse(Bin) ->
       end, #state{}, List),
   State#state{monkeys = lists:reverse(State#state.monkeys)}.
 
+new_state(State) ->
+  State#state{counts = counters:new(State#state.num + 1, [])}.
+
 solve() ->
   Bin = input:get(11),
   State = parse(Bin),
-
   LCM = lists:foldl(fun(#monkey{divisible_by = Div}, Acc) ->
                         Acc * Div
                     end, 1, State#state.monkeys),
-
-  P1 = simulate(State, _Rounds1 = 20,    fun(X) -> X div 3 end),
-  P2 = simulate(State, _Rounds2 = 10000, fun(X) -> X rem LCM end),
+  P1 = simulate(new_state(State), _Rounds1 = 20,    fun(X) -> X div 3 end),
+  P2 = simulate(new_state(State), _Rounds2 = 10000, fun(X) -> X rem LCM end),
   {P1, P2}.
 
 solution(State) ->
-  Values = maps:values(State#state.counts),
-  [X1, X2|_] = lists:reverse(lists:sort(Values)),
-  X1 * X2.
+  CountsRef = State#state.counts,
+  {A, B} =
+    lists:foldl(fun(Ix, {A, B}) ->
+                    Val = counters:get(CountsRef, Ix),
+                    if Val > A ->
+                        {Val, A};
+                       Val > B ->
+                        {A, Val};
+                       true ->
+                        {A, B}
+                    end
+                end, {0, 0}, lists:seq(1, State#state.num + 1)),
+  A * B.
 
 simulate(State, 0, _ReduceFun) ->
   solution(State);
-simulate(State, Round, ReduceFun) ->
+simulate(#state{counts = CountsRef} = State, Round, ReduceFun) ->
   MapOut =
     lists:foldl(
       fun(#monkey{num = Num,
@@ -87,20 +105,18 @@ simulate(State, Round, ReduceFun) ->
                   on_true = OnTrue,
                   on_false = OnFalse,
                   divisible_by = Div},
-          #state{items = Items,
-                 counts = Counts} = State0) ->
+          #state{items = Items} = State0) ->
           ItemList = maps:get(Num, Items),
           case ItemList of
             [] -> State0;
             _ ->
-              NumItems = length(ItemList),
-              State1 = State0#state{
-                         items = maps:put(Num, [], Items),
-                         counts = maps:update_with(
-                                    Num,
-                                    fun(Old) -> Old + NumItems end,
-                                    NumItems,
-                                    Counts)},
+              State1 = State0#state{items = maps:put(Num, [], Items)},
+              counters:add(CountsRef, Num + 1, length(ItemList)),
+                         %% counts = maps:update_with(
+                         %%            Num,
+                         %%            fun(Old) -> Old + NumItems end,
+                         %%            NumItems,
+                         %%            Counts)},
 
               #{OnTrue := TrueL,
                 OnFalse := FalseL} = State1#state.items,
