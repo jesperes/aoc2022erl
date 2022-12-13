@@ -89,9 +89,11 @@ simulate(State, Round, ReduceFun) ->
                   divisible_by = Div},
           #state{items = Items,
                  counts = Counts} = State0) ->
-          case length(maps:get(Num, Items, [])) of
-            0 -> State0;
-            NumItems ->
+          ItemList = maps:get(Num, Items),
+          case ItemList of
+            [] -> State0;
+            _ ->
+              NumItems = length(ItemList),
               State1 = State0#state{
                          items = maps:put(Num, [], Items),
                          counts = maps:update_with(
@@ -100,29 +102,33 @@ simulate(State, Round, ReduceFun) ->
                                     NumItems,
                                     Counts)},
 
-              {TrueList, FalseList} =
-                lists:foldl(
-                  fun(Item, {TrueList, FalseList}) ->
-                      WorryLevel = ReduceFun(OpFun(Item)),
-                      if WorryLevel rem Div == 0 ->
-                          {[WorryLevel|TrueList], FalseList};
-                         true ->
-                          {TrueList, [WorryLevel|FalseList]}
-                      end
-                  end, {[], []}, maps:get(Num, Items)),
-
               #{OnTrue := TrueL,
                 OnFalse := FalseL} = State1#state.items,
 
+              {TrueList, FalseList} =
+                partition(ItemList, TrueL, FalseL, ReduceFun, OpFun, Div),
+
               State1#state{
                 items = maps:merge(State1#state.items,
-                                   #{OnTrue => TrueList ++ TrueL,
-                                     OnFalse => FalseList ++ FalseL})}
-
+                                   #{OnTrue => TrueList,
+                                     OnFalse => FalseList})}
           end
       end, State, State#state.monkeys),
 
   simulate(MapOut, Round - 1, ReduceFun).
+
+%% Partition a set of items into two lists, one which should be sent
+%% to the "if true" monkey, and the other to be sent to the "if false"
+%% monkey.
+partition([], T, F, _, _, _) ->
+  {T, F};
+partition([Item|Items], T, F, ReduceFun, OpFun, Div) ->
+  case ReduceFun(OpFun(Item)) of
+    WorryLevel when WorryLevel rem Div == 0 ->
+      partition(Items, [WorryLevel|T], F, ReduceFun, OpFun, Div);
+    WorryLevel ->
+      partition(Items, T, [WorryLevel|F], ReduceFun, OpFun, Div)
+  end.
 
 split(Binary, Sep) ->
   binary:split(Binary, Sep, [global]).
