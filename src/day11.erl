@@ -29,12 +29,11 @@ parse(Bin) ->
               State0#state{num = Num0 - $0,
                            monkeys = [#monkey{num = Num0 - $0}|Monkeys]};
             <<"  Starting items: ", Rest/binary>> ->
-              Items = lists:reverse(
-                        lists:map(fun(<<" ", N/binary>>) ->
-                                      binary_to_integer(N);
-                                     (N) ->
-                                      binary_to_integer(N)
-                                  end, split(Rest, <<",">>))),
+              Items = lists:map(fun(<<" ", N/binary>>) ->
+                                    binary_to_integer(N);
+                                   (N) ->
+                                    binary_to_integer(N)
+                                end, split(Rest, <<",">>)),
               State0#state{items = maps:put(Num, Items, ItemMap)};
             <<"  Operation: ", Rest/binary>> ->
               Op =
@@ -101,6 +100,9 @@ simulate(State, Round, ReduceFun) ->
                                     NumItems,
                                     Counts)},
 
+              %% TODO: optimize by collecting all the items going to
+              %% each of the two destination monkeys, then moving them
+              %% all in a batch, to avoid adding them one at a time.
               lists:foldl(
                 fun(Item, State2) ->
                     WorryLevel = ReduceFun(OpFun(Item)),
@@ -113,7 +115,7 @@ simulate(State, Round, ReduceFun) ->
                                 fun(Old) -> [WorryLevel|Old] end,
                                 [WorryLevel],
                                 State2#state.items)}
-                end, State1, lists:reverse(maps:get(Num, Items)))
+                end, State1, maps:get(Num, Items))
           end
       end, State, State#state.monkeys),
 
