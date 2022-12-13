@@ -93,29 +93,32 @@ simulate(State, Round, ReduceFun) ->
             0 -> State0;
             NumItems ->
               State1 = State0#state{
-                         items = maps:remove(Num, Items),
+                         items = maps:put(Num, [], Items),
                          counts = maps:update_with(
                                     Num,
                                     fun(Old) -> Old + NumItems end,
                                     NumItems,
                                     Counts)},
 
-              %% TODO: optimize by collecting all the items going to
-              %% each of the two destination monkeys, then moving them
-              %% all in a batch, to avoid adding them one at a time.
-              lists:foldl(
-                fun(Item, State2) ->
-                    WorryLevel = ReduceFun(OpFun(Item)),
-                    ThrowTo = if WorryLevel rem Div == 0 -> OnTrue;
-                                 true -> OnFalse
-                              end,
-                    State2#state{
-                      items = maps:update_with(
-                                ThrowTo,
-                                fun(Old) -> [WorryLevel|Old] end,
-                                [WorryLevel],
-                                State2#state.items)}
-                end, State1, maps:get(Num, Items))
+              {TrueList, FalseList} =
+                lists:foldl(
+                  fun(Item, {TrueList, FalseList}) ->
+                      WorryLevel = ReduceFun(OpFun(Item)),
+                      if WorryLevel rem Div == 0 ->
+                          {[WorryLevel|TrueList], FalseList};
+                         true ->
+                          {TrueList, [WorryLevel|FalseList]}
+                      end
+                  end, {[], []}, maps:get(Num, Items)),
+
+              #{OnTrue := TrueL,
+                OnFalse := FalseL} = State1#state.items,
+
+              State1#state{
+                items = maps:merge(State1#state.items,
+                                   #{OnTrue => TrueList ++ TrueL,
+                                     OnFalse => FalseList ++ FalseL})}
+
           end
       end, State, State#state.monkeys),
 
