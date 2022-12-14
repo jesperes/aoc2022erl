@@ -30,21 +30,21 @@ timings(Days) ->
 tabulate(Runs) ->
   io:setopts([{encoding, unicode}]),
   Str =
-    [io_lib:format("Module,Avg (μs),Avg (s),Iter,σ~n", []),
+    [io_lib:format("Module,Avg (μs),Min (μs), Max (μs),Iter,σ~n", []),
      lists:map(
        fun(#{module := Module,
              standard_deviation := S,
              avg := Avg,
              values := Values}) ->
-           %% {Avg0, Unit} = format_time(Avg),
            AvgUsecs = trunc(Avg),
-           AvgSecs = Avg / 1000000,
-           io_lib:format("~s,~w,~.3f,~w,~.2f~n",
-                         [Module, AvgUsecs, AvgSecs, length(Values), S])
+           MinUsecs = lists:min(Values),
+           MaxUsecs = lists:max(Values),
+           io_lib:format("~s,~w,~w,~w,~w,~.2f~n",
+                         [Module, AvgUsecs, MinUsecs, MaxUsecs, length(Values), S])
        end, Runs)],
   ok = file:write_file("/tmp/tabulate", [unicode:characters_to_binary(Str)]),
   Output = os:cmd(
-             lists:flatten(io_lib:format("tabulate -1 -f simple -s, /tmp/tabulate", []))),
+             lists:flatten(io_lib:format("tabulate -1 -f github -s, /tmp/tabulate", []))),
   io:format("~ts~n", [Output]).
 
 standard_deviation(Values) ->
@@ -63,7 +63,7 @@ avg(Values) ->
   lists:sum(Values) / length(Values).
 
 timing(Module) ->
-  io:format("Timing module ~p...~n", [Module]),
+  %% io:format("Timing module ~p...~n", [Module]),
   MaxSecs = 5,
   MinIter = 5,
   MaxIter = 1000,

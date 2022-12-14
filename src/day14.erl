@@ -16,48 +16,30 @@ solve() ->
                line_to_coords(Line, Acc)
            end, #{}, Lines),
   MaxY = lists:max(lists:map(fun({_, Y}) -> Y end, maps:keys(Grid))),
-  P1 = simulate1(?START, Grid, MaxY),
-  P2 = simulate2(?START, Grid, MaxY),
+  P1 = simulate(?START, Grid, MaxY, p1),
+  P2 = simulate(?START, Grid, MaxY, p2),
   {P1, P2}.
 
-simulate1({_, Y}, Grid, MaxY) when Y > MaxY ->
+simulate({_, Y}, Grid, MaxY, p1) when Y > MaxY ->
   num_units(Grid);
-simulate1({X, Y} = Pos, Grid, MaxY) ->
+simulate({_, Y} = Pos, Grid, MaxY, p2) when Y == MaxY + 1 ->
+  simulate(?START, maps:put(Pos, $O, Grid), MaxY, p2);
+simulate({X, Y} = Pos, Grid, MaxY, Part) ->
   Down = {X, Y + 1},
   case maps:get(Down, Grid, $.) of
-    $. -> simulate1(Down, Grid, MaxY);
+    $. -> simulate(Down, Grid, MaxY, Part);
     _ ->
       DownLeft = {X - 1, Y + 1},
       case maps:get(DownLeft, Grid, $.) of
-        $. -> simulate1(DownLeft, Grid, MaxY);
+        $. -> simulate(DownLeft, Grid, MaxY, Part);
         _ ->
           DownRight = {X + 1, Y + 1},
           case maps:get(DownRight, Grid, $.) of
-            $. -> simulate1(DownRight, Grid, MaxY);
-            _ -> simulate1(?START, maps:put(Pos, $O, Grid), MaxY)
-          end
-      end
-  end.
-
-simulate2({_, Y} = Pos, Grid, MaxY) when Y == MaxY + 1 ->
-  %% If we reach line MaxY, we hit the "infinite line" at MaxY + 2,
-  %% and the sand unit comes to rest. Repeat with next unit.
-  simulate2(?START, maps:put(Pos, $O, Grid), MaxY);
-simulate2({X, Y} = Pos, Grid, MaxY) ->
-  Down = {X, Y + 1},
-  case maps:get(Down, Grid, $.) of
-    $. -> simulate2(Down, Grid, MaxY);
-    _ -> DownLeft = {X - 1, Y + 1},
-      case maps:get(DownLeft, Grid, $.) of
-        $. -> simulate2(DownLeft, Grid, MaxY);
-        _ ->
-          DownRight = {X + 1, Y + 1},
-          case maps:get(DownRight, Grid, $.) of
-            $. -> simulate2(DownRight, Grid, MaxY);
-            _ when Pos =:= ?START ->
+            $. -> simulate(DownRight, Grid, MaxY, Part);
+            _ when Pos =:= ?START andalso Part =:= p2 ->
               num_units(maps:put(Pos, $O, Grid));
             _ ->
-              simulate2(?START, maps:put(Pos, $O, Grid), MaxY)
+              simulate(?START, maps:put(Pos, $O, Grid), MaxY, Part)
           end
       end
   end.
