@@ -5,8 +5,8 @@ in Erlang.
 
 # Performance
 
-Erlang version: 25.1.2
-CPU: Intel(R) Core(TM) i7-10610U CPU @ 1.80GHz
+* Erlang version: 25.1.2
+* CPU: Intel(R) Core(TM) i7-10610U CPU @ 1.80GHz
 
 | Module   |   Avg (μs) |   Min (μs) |    Max (μs) |   Iter |        σ |
 |----------|------------|------------|-------------|--------|----------|
