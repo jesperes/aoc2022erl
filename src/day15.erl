@@ -108,18 +108,6 @@ part1(Input, P1Y) ->
                                       Input#input.beacons))),
   Count - SnB.
 
-count_intervals([{X0, X1}], Acc) ->
-  X1 - X0 + 1 + Acc;
-count_intervals([{_X1, X2} = I1, {_X3, X4}|Rest], Acc) when X4 =< X2 ->
-  %% [X3,X4] is a subset of [X1,X2]
-  count_intervals([I1|Rest], Acc);
-count_intervals([{X1, X2}, {X3, X4}|Rest], Acc) when X3 =< X2 ->
-  %% [X1,X2] partially overlaps [X3,X4]
-  count_intervals([{X1, X4}|Rest], Acc);
-count_intervals([{X1, X2}, {X3, _X4} = I1|Rest], Acc) when X2 < X3 ->
-  %% [X1,X2] is a disjoint interval
-  count_intervals([I1|Rest], X2 - X1 + 1 + Acc).
-
 part2(Input, _P2Range) ->
   PL = all_perimeter_lines(Input),
   Pairs = [{L1, L2} || L1 <- PL, L2 <- PL, L1 < L2],
@@ -147,6 +135,22 @@ part2(Input, _P2Range) ->
                             end, maps:to_list(Freq)),
 
   tuning_frequency(Pos).
+
+%% ============================================================
+%% Helper functions
+%% ============================================================
+
+count_intervals([{X0, X1}], Acc) ->
+  X1 - X0 + 1 + Acc;
+count_intervals([{_X1, X2} = I1, {_X3, X4}|Rest], Acc) when X4 =< X2 ->
+  %% [X3,X4] is a subset of [X1,X2]
+  count_intervals([I1|Rest], Acc);
+count_intervals([{X1, X2}, {X3, X4}|Rest], Acc) when X3 =< X2 ->
+  %% [X1,X2] partially overlaps [X3,X4]
+  count_intervals([{X1, X4}|Rest], Acc);
+count_intervals([{X1, X2}, {X3, _X4} = I1|Rest], Acc) when X2 < X3 ->
+  %% [X1,X2] is a disjoint interval
+  count_intervals([I1|Rest], X2 - X1 + 1 + Acc).
 
 all_perimeter_lines(Input) ->
   lists:flatten(
