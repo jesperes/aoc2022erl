@@ -9,26 +9,9 @@
 
 -define(int(X), binary_to_integer(X)).
 
-%% Part 2: find the only possible solution for the distress beacon,
-%% i.e. the only position which is not in range of any beacon. Each
-%% sensor excludes a diamond-shaped area determined by the
-%% Manhattan-distance to its nearest beacon. There is a single
-%% position which is not covered by any such diamond, find it!
-%%
-%% For part 2, the {x,y} coordinates must be in the range [0, 4000000]
-%% which means that the total number of position is 4 trillion (4
-%% terapixels). We cannot search all of the pixels.
-%%
-%% However, the pixel we are looking for (since there is only one),
-%% must be just outside the range of one of the sensors (otherwise
-%% there would be more than one pixel). This limits the search space
-%% enormously.
-%%
-
 -type coord() :: {integer(), integer()}.
 
 -record(snb, { sensor :: coord()
-             , beacon :: coord()
              , dist :: integer()
              }).
 
@@ -77,26 +60,24 @@ solve() ->
               Beacon = {?int(Bx), ?int(By)},
               Dist = dist(Sensor, Beacon),
               Input#input{ snbs = [#snb{ sensor = Sensor
-                                       , beacon = Beacon
                                        , dist = Dist
                                        }|SnBs]
                          , items_on_p1_yline =
-                             case {Sensor, Beacon} of
-                               {{_, P1Y}, {_, P1Y}} ->
-                                 sets:add_element(Beacon, sets:add_element(Sensor, P1Items));
-                               {{_, P1Y}, _} ->
-                                 sets:add_element(Sensor, P1Items);
-                               {_, {_, P1Y}} ->
-                                 sets:add_element(Beacon, P1Items);
-                               _ ->
-                                 P1Items
-                             end
+                             lists:foldl(fun({_X, Y} = Pos, Acc) when Y == P1Y ->
+                                             sets:add_element(Pos, Acc);
+                                            (_, Acc) -> Acc
+                                         end, P1Items, [Sensor, Beacon])
                          }
           end
       end, #input{}, Lines),
 
-  {part1(Input, P1Y),
-   part2(Input, P2Range)}.
+  {?debugTime("part1", part1(Input, P1Y)),
+   ?debugTime("part2", part2(Input, P2Range))}.
+
+%% TODO optimize part 1: for each sensor, check how much of the given
+%% Y (2000000) it intersects. This gives a (x1, x2) range. Sort these
+%% ranges, and iterate from lowest to highest, jumping from x1 -> x2
+%% to avoid checking every position.
 
 part1(Input, P1Y) ->
   {P1XMin, P1XMax} = {lists:min([Sx - Dist || #snb{sensor = {Sx, _}, dist = Dist} <- Input#input.snbs]),
@@ -114,8 +95,21 @@ part1(Input, P1Y) ->
                    end, 0, lists:seq(P1XMin, P1XMax)),
   P1.
 
+%% TODO optimize part 2: Observation: each sensor has four lines
+%% describing the positions which are "just-out-of-sensor-range". The
+%% position we are looking for is where *four* of these lines
+%% intersects.  In other words, the position we are looking for is
+%% *just* out of range of exactly four sensors. If there were less,
+%% there would be more than one position adjacent to it.
+%%
+%% Check all intersections between two or more such "perimeter lines",
+%% and find the intersection where exactly four of them intersect.
+
 part2(Input, P2Range) ->
   P2Cands = candidates(Input, P2Range),
+  ?debugFmt("P2 candidate positions: ~p", [length(P2Cands)]),
+  ?debugFmt("P2 candidate unique: ~p", [sets:size(sets:from_list(P2Cands))]),
+
   {value, Pos} = lists:search(fun(Pos) ->
                                   not lists:any(
                                         fun(#snb{sensor = S, dist = Dist}) ->
@@ -177,8 +171,8 @@ print_coords(L) ->
 -ifdef(TEST).
 
 day13_test_() ->
-  {timeout, 20, fun() ->
-                    {4665948, 13543690671045} = solve()
+  {timeout, 3600, fun() ->
+                    {4665948, 13543690671045} = ?debugTime("part1 and part2", solve())
                 end}.
 
 -endif.
