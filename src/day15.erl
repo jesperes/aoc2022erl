@@ -26,22 +26,27 @@
 %%
 
 solve() ->
-  Bin = input:get(15),
-  %% Bin = <<"Sensor at x=2, y=18: closest beacon is at x=-2, y=15\n",
-  %%         "Sensor at x=9, y=16: closest beacon is at x=10, y=16\n",
-  %%         "Sensor at x=13, y=2: closest beacon is at x=15, y=3\n",
-  %%         "Sensor at x=12, y=14: closest beacon is at x=10, y=16\n",
-  %%         "Sensor at x=10, y=20: closest beacon is at x=10, y=16\n",
-  %%         "Sensor at x=14, y=17: closest beacon is at x=10, y=16\n",
-  %%         "Sensor at x=8, y=7: closest beacon is at x=2, y=10\n",
-  %%         "Sensor at x=2, y=0: closest beacon is at x=2, y=10\n",
-  %%         "Sensor at x=0, y=11: closest beacon is at x=2, y=10\n",
-  %%         "Sensor at x=20, y=14: closest beacon is at x=25, y=17\n",
-  %%         "Sensor at x=17, y=20: closest beacon is at x=21, y=22\n",
-  %%         "Sensor at x=16, y=7: closest beacon is at x=15, y=3\n",
-  %%         "Sensor at x=14, y=3: closest beacon is at x=15, y=3\n",
-  %%         "Sensor at x=20, y=1: closest beacon is at x=15, y=3\n"
-  %%       >>,
+  %% Bin = input:get(15),
+  %% P1YRange = {10, 10},
+  %% P2Range = {0, 20},
+
+  Bin = <<"Sensor at x=2, y=18: closest beacon is at x=-2, y=15\n",
+          "Sensor at x=9, y=16: closest beacon is at x=10, y=16\n",
+          "Sensor at x=13, y=2: closest beacon is at x=15, y=3\n",
+          "Sensor at x=12, y=14: closest beacon is at x=10, y=16\n",
+          "Sensor at x=10, y=20: closest beacon is at x=10, y=16\n",
+          "Sensor at x=14, y=17: closest beacon is at x=10, y=16\n",
+          "Sensor at x=8, y=7: closest beacon is at x=2, y=10\n",
+          "Sensor at x=2, y=0: closest beacon is at x=2, y=10\n",
+          "Sensor at x=0, y=11: closest beacon is at x=2, y=10\n",
+          "Sensor at x=20, y=14: closest beacon is at x=25, y=17\n",
+          "Sensor at x=17, y=20: closest beacon is at x=21, y=22\n",
+          "Sensor at x=16, y=7: closest beacon is at x=15, y=3\n",
+          "Sensor at x=14, y=3: closest beacon is at x=15, y=3\n",
+          "Sensor at x=20, y=1: closest beacon is at x=15, y=3\n"
+        >>,
+  P1YRange = {10, 10},
+  P2Range = {0, 20},
 
   Lines = binary:split(Bin, <<"\n">>, [global]),
   SnB =
@@ -54,124 +59,70 @@ solve() ->
               Sensor = {?int(Sx), ?int(Sy)},
               Beacon = {?int(Bx), ?int(By)},
               Dist = dist(Sensor, Beacon),
-              %% io:format("Sensor at ~w, closest beacon is at ~w, distance is ~w~n",
-              %%           [Sensor, Beacon, Dist]),
               [{Sensor, Beacon, Dist}|Acc]
           end
       end, [], Lines),
 
-  Cands = candidates(SnB),
-  InRange = in_range(Cands, 0, 4000000),
+  P1XRange = {lists:min([Sx - Dist || {{Sx, _}, _, Dist} <- SnB]),
+              lists:max([Sx + Dist || {{Sx, _}, _, Dist} <- SnB])},
+  P1Cands = candidates(SnB, P1XRange, P1YRange),
 
-  Grid = lists:foldl(
-           fun(Pos, Acc) ->
-               case lists:any(
-                      fun({S, _, Dist}) ->
-                          dist(Pos, S) =< Dist
-                      end, SnB) of
-                 false ->
-                   io:format("Tuning frequency of ~p = ~p~n", [Pos, tuning_frequency(Pos)]),
-                   maps:put(Pos, $@, Acc);
-                 true ->
-                   Acc
-               end
-           end, #{}, InRange),
+  P1 = lists:foldl(fun(Pos, Acc) ->
+                       case is_in_range_of_any_sensor(Pos, SnB) of
+                         true -> [Pos|Acc];
+                         false -> Acc
+                       end
+                   end, [], P1Cands),
 
-  io:format("~s~n", [grid:to_str(Grid)]).
+  P2Cands = candidates(SnB, P2Range, P2Range),
+  {value, Pos} = lists:search(fun(Pos) ->
+                                  not lists:any(
+                                        fun({S, _, Dist}) ->
+                                            dist(Pos, S) =< Dist
+                                        end, SnB)
+                              end, P2Cands),
+  P2 = tuning_frequency(Pos),
+  {length(P1), P2}.
+
+is_in_range_of_any_sensor(Pos, SnB) ->
+  lists:any(fun({S, _B, Dist}) ->
+                case dist(Pos, S) of
+                  D when D =< Dist ->
+                    true;
+                  _ -> false
+                end
+            end, SnB).
 
 tuning_frequency({X, Y}) ->
   X * 4000000 + Y.
 
-candidates(SnB) ->
+candidates(SnB, XRange, YRange) ->
   lists:foldl(fun({S, _B, Dist}, Acc) ->
-                  just_outside(S, Dist, Acc)
+                  just_outside(S, Dist, XRange, YRange, Acc)
               end, [], SnB).
 
-
-in_range(Coords, Min, Max) ->
-  lists:filter(fun({X, Y}) ->
-                   X >= Min andalso X =< Max andalso
-                     Y >= Min andalso Y =< Max
-               end, Coords).
+in_range(X, {Min, Max}) ->
+  X >= Min andalso X =< Max.
 
 %% Generate the coordinates with manhattan distance D + 1 from {Cx,
 %% Cy}.
-just_outside({Cx, Cy} = _Center, D, Acc) ->
+just_outside({Cx, Cy} = _Center, D, XRange, YRange, Acc) ->
   Dist = D + 1,
-  L1 = diagonal({Cx,        Cy - Dist}, {1,   1}, Dist, Acc),
-  L2 = diagonal({Cx + Dist, Cy},        {-1,  1}, Dist, L1),
-  L3 = diagonal({Cx,        Cy + Dist}, {-1, -1}, Dist, L2),
-  L  = diagonal({Cx - Dist, Cy},        {1,  -1}, Dist, L3),
-  %% print_coords(L),
-  %% ?assert(lists:all(fun(Pos) ->
-  %%                       dist(Pos, Center) == Dist
-  %%                   end, L)),
+  L1 = diagonal({Cx,        Cy - Dist}, {1,   1}, Dist, XRange, YRange, Acc),
+  L2 = diagonal({Cx + Dist, Cy},        {-1,  1}, Dist, XRange, YRange, L1),
+  L3 = diagonal({Cx,        Cy + Dist}, {-1, -1}, Dist, XRange, YRange, L2),
+  L  = diagonal({Cx - Dist, Cy},        {1,  -1}, Dist, XRange, YRange, L3),
   L.
 
-diagonal(_, _, 0, Acc) ->
+diagonal(_, _, 0, _, _, Acc) ->
   Acc;
-diagonal({X, Y}, {Dx, Dy} = Delta, N, Acc) ->
-  diagonal({X + Dx, Y + Dy}, Delta, N - 1, [{X, Y}|Acc]).
-
-
-%% find_positions_without_beacons(SnB, Y) ->
-%%   MinX = lists:min([Sx - Dist || {{Sx, _}, _, Dist} <- SnB]),
-%%   MaxX = lists:max([Sx + Dist || {{Sx, _}, _, Dist} <- SnB]),
-
-%%   io:format("MinX = ~w~n", [MinX]),
-%%   io:format("MaxX = ~w~n", [MaxX]).
-
-
-
-
-
-
-%%   N = lists:foldl(
-%%         fun(X, Acc) ->
-%%             Pos = {X, Y},
-%%             case is_beacon_or_sensor(Pos, SnB) of
-%%               true ->
-%%                 %%io:format("@", []),
-%%                 Acc;
-%%               false ->
-%%                 case cannot_contain_beacon(Pos, SnB) of
-%%                   true -> Acc + 1;
-%%                   false ->
-%%                     %%io:format(".", []),
-%%                     Acc
-%%                 end
-%%             end
-%%         end, 0, lists:seq(MinX, MaxX)),
-
-%%   %%io:format("~n", []),
-%%   N.
-
-%% is_beacon_or_sensor(Pos, SnB) ->
-%%   lists:any(fun({_, B, _}) when B =:= Pos -> true;
-%%                ({S, _, _}) when S =:= Pos -> true;
-%%                (_) -> false
-%%             end, SnB).
-
-%% cannot_contain_beacon(Pos, SnB) ->
-%%   lists:any(fun({Sensor, _Beacon, Dist} = _Pair) ->
-%%                 case dist(Pos, Sensor) of
-%%                   D when D =< Dist ->
-%%                     %%io:format("#", []),
-%%                     true;
-%%                   _ ->
-%%                     false
-%%                 end
-%%             end, SnB).
-
-%% exclude_other_beacons({Sx, Sy} = Sensor, {Bx, By} = Beacon, Map) ->
-%%   Dist = dist(Sensor, Beacon),
-%%   lists:foldl(
-%%     fun(Pos, Acc) ->
-%%         maps:put(Pos, $#, Acc)
-%%     end, Map,
-%%     [{X, Y} || X <- lists:seq(Sx - Dist, Sx + Dist),
-%%                Y <- lists:seq(Sy - Dist, Sy + Dist),
-%%                dist(Sensor, {X, Y}) =< Dist]).
+diagonal({X, Y}, {Dx, Dy} = Delta, N, XRange, YRange, Acc) ->
+  case in_range(X, XRange) andalso in_range(Y, YRange) of
+    true ->
+      diagonal({X + Dx, Y + Dy}, Delta, N - 1, XRange, YRange, [{X, Y}|Acc]);
+    false ->
+      diagonal({X + Dx, Y + Dy}, Delta, N - 1, XRange, YRange, Acc)
+  end.
 
 dist({X0, Y0}, {X1, Y1}) ->
   abs(X0 - X1) + abs(Y0 - Y1).
