@@ -4,6 +4,7 @@
 
 -export([to_str/1,
          to_plain_str/1,
+         to_inv_str/1,
          grid_with_path/3]).
 
 -define(LMARGIN, 4).
@@ -27,6 +28,23 @@ to_str(Grid) ->
        true ->
            io_lib:format("Grid is empty: ~p", [Grid])
     end.
+
+to_inv_str(Grid) ->
+    {XCoords, YCoords} = coords(Grid),
+    if length(XCoords) > 0 andalso length(YCoords) > 0 ->
+           MinX = lists:min(XCoords),
+           MaxX = lists:max(XCoords),
+
+           FirstY = lists:max(YCoords),
+           LastY = lists:min(YCoords),
+
+           header(MinX, MaxX)
+           ++ [left_margin(Y) ++ [maps:get({X, Y}, Grid, $.) || X <- lists:seq(MinX, MaxX)] ++ "\n"
+               || Y <- lists:seq(FirstY, LastY, -1)];
+       true ->
+           io_lib:format("Grid is empty: ~p", [Grid])
+    end.
+
 
 to_plain_str(Grid) ->
     {XCoords, YCoords} = coords(Grid),
