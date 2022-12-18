@@ -13,7 +13,10 @@
 %% 2. Encode the 3-tuple coordinates into a single int to speed up map
 %% lookup
 %%
--define(OFFSET, 1).      %% Offset to avoid negative coordinates
+%% 3. Using a counters-based array to track filled cubes turns out to
+%% be considerably slower than maps.
+%%
+-define(OFFSET, 2).      %% Offset to avoid negative coordinates
 -define(COORD_WIDTH, 5). %% Coordinates fit in 5 bits (<20)
 -define(key(Coord), begin
                       {X, Y, Z} = Coord,
@@ -22,12 +25,38 @@
                         (Z + ?OFFSET)
                     end).
 
+%% Preprocessor shenanigans
+key(Coord) ->
+  ?key(Coord).
+
+-define(USE_MAPS, 1).
+%% -define(USE_COUNTERS, 1).
+
+-ifdef(USE_MAPS).
 -define(set_from_list(L),
         maps:from_list(
           lists:zip(lists:map(fun(Elem) -> ?key(Elem) end, L), lists:duplicate(length(L), true)))).
 -define(set_new, #{}).
 -define(set_is_elem(Elem, Set), maps:is_key(?key(Elem), Set)).
 -define(set_add_elem(Elem, Set), maps:put(?key(Elem), true, Set)).
+-endif.
+
+-ifdef(USE_COUNTERS).
+-define(set_new, counters:new(?key({21, 21, 21}), [])).
+-define(set_is_elem(Elem, Set), (counters:get(Set, ?key(Elem)) == 1)).
+-define(set_add_elem(Elem, Set),
+        begin
+          counters:put(Set, ?key(Elem), 1),
+          Set
+        end).
+-define(set_from_list(L),
+        begin
+          Ref = counters:new(key({21, 21, 21}), []),
+          lists:foreach(fun(C) -> ?set_add_elem(C, Ref) end, L),
+          Ref
+        end).
+-endif.
+
 
 solve() ->
   Bin = input:get(18),
