@@ -6,11 +6,28 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% Maps seems to outperform sets in this case.
--define(set_from_list(L), maps:from_list(lists:zip(L, lists:duplicate(length(L), true)))).
+%% Optmizations:
+%%
+%% 1. Use maps instead of sets
+%%
+%% 2. Encode the 3-tuple coordinates into a single int to speed up map
+%% lookup
+%%
+-define(OFFSET, 1).      %% Offset to avoid negative coordinates
+-define(COORD_WIDTH, 5). %% Coordinates fit in 5 bits (<20)
+-define(key(Coord), begin
+                      {X, Y, Z} = Coord,
+                      ((X + ?OFFSET) bsl (?COORD_WIDTH * 2)) bor
+                        ((Y + ?OFFSET) bsl ?COORD_WIDTH) bor
+                        (Z + ?OFFSET)
+                    end).
+
+-define(set_from_list(L),
+        maps:from_list(
+          lists:zip(lists:map(fun(Elem) -> ?key(Elem) end, L), lists:duplicate(length(L), true)))).
 -define(set_new, #{}).
--define(set_is_elem(Elem, Set), maps:is_key(Elem, Set)).
--define(set_add_elem(Elem, Set), maps:put(Elem, true, Set)).
+-define(set_is_elem(Elem, Set), maps:is_key(?key(Elem), Set)).
+-define(set_add_elem(Elem, Set), maps:put(?key(Elem), true, Set)).
 
 solve() ->
   Bin = input:get(18),
