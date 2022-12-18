@@ -2,6 +2,8 @@
 
 -compile([export_all, nowarn_export_all]).
 
+-export([solve/0]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 -type coord() :: {Y :: integer(), X :: integer()}.
@@ -11,6 +13,12 @@
               , width :: integer()
               , height :: integer()
               }).
+
+-record(cycle, { rock_num_start :: integer()     %% First rock of cycle
+               , height_at_start :: integer()    %% Height when cycle starts
+               , cycle_height :: integer()       %% Height of cycle
+               , num_rocks_in_cycle :: integer() %% Number of rocks in cycle
+               }).
 
 %% y coordinate grows upwards
 -define(ROCKS, { #rock{name = minus, width = 4, height = 1, coords = [{0,0}, {1,0}, {2,0}, {3,0}]}
@@ -26,7 +34,7 @@
 -define(JET_LEFT, $<).
 -define(JET_RIGHT, $>).
 
--record(state, { current_rock = 0 :: integer()
+-record(state, { current_rock = 0 :: integer() | undefined
                , num_remaining_rocks = undefined :: integer()
                , left_offset = ?INITIAL_OFFSET :: integer()
                , height = ?INITIAL_DROP_HEIGHT + 1 :: integer()
@@ -35,9 +43,11 @@
                , dropped_rocks = sets:new() :: sets:set()
                , top = 0 :: integer()
                , input_pos = 0 :: integer()
+               , cycles = #{} :: map()
+               , cycle = undefined :: #cycle{}
                }).
 
-%% -define(TRACE, t).
+-define(TRACE, t).
 
 -ifdef(TRACE).
 -define(fmt(Fmt, Args), io:format(Fmt, Args)).
@@ -62,10 +72,12 @@
 %% 31    |.##.#..|
 %% 30    |..###..|
 
+solve() ->
+  solve(?NUM_ROCKS_PART1).
 
 solve(N) ->
   %% Bin = input:get(17),
-  Bin = <<">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>\n">>,
+  Bin = <<">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>">>,
   ?fmt("The first rock begins falling~n", []),
   ?fmt("~p~n", [Bin]),
   State = #state{ num_remaining_rocks = N
@@ -74,34 +86,53 @@ solve(N) ->
                 , dropped_rocks = sets:from_list([{0,0}, {1,0}, {2,0}, {3,0}, {4,0}, {5,0}, {6,0}])
                 },
   print_state(State),
-  drop_rocks(State).
+  Cycle = drop_rocks(State),
+  #cycle{ rock_num_start = RockNumStart
+        , height_at_start = HeightAtStart
+        , cycle_height = CycleHeight
+        , num_rocks_in_cycle = NumRocksInCycle
+        } = Cycle,
+
+  io:format("Cycle: ~p~n", [Cycle]),
+  io:format("Rock at beginning of cycle: ~p~n", [get_rock(RockNumStart, ?ROCKS)]),
+  N0 = (N - RockNumStart), %% drop rocks to reach cycle start
+  %%Height0 = HeightAtStart,
+  NumWholeCycles = N0 div NumRocksInCycle,
+  %%RemainingRocks = N0 rem NumRocksInCycle,
+  io:format("Num whole cycles: ~p~n", [NumWholeCycles]),
+  FinalHeight = HeightAtStart + (NumWholeCycles * CycleHeight),
+  {FinalHeight, Cycle}.
+
 
 drop_rocks(#state{num_remaining_rocks = 0} = State) ->
   ?fmt("~nNo more rocks.~n", []),
   print_state(State#state{current_rock = undefined}),
   State#state.top;
-drop_rocks(#state{ winds = <<"\n">>
+drop_rocks(#state{ winds = <<>>
                  , orig_winds = Winds
-                 , input_pos = 0
                  } = State) ->
-  drop_rocks(State#state{winds = Winds});
-drop_rocks(#state{ winds = <<Wind, _/binary>>
+  drop_rocks(State#state{winds = Winds, input_pos = 0});
+drop_rocks(#state{ winds = <<Wind, _/binary>> = _Winds
                  , height = Height
                  , current_rock = CurrentRock
                  } = State) when Height >= 0 ->
   Rock = get_rock(CurrentRock, ?ROCKS),
   State1 = maybe_move(Wind, Rock, State),
 
-  case {Wind, State1#state.left_offset == State#state.left_offset} of
-    {$<, false} -> ?fmt("~nJet of gas pushes rock left~n", []);
-    {$>, false} -> ?fmt("~nJet of gas pushes rock right~n", []);
-    {$<, true} -> ?fmt("~nJet of gas pushes rock left, but nothing happens~n", []);
-    {$>, true} -> ?fmt("~nJet of gas pushes rock right, but nothing happens~n", [])
-  end,
+  %% case {Wind, State1#state.left_offset == State#state.left_offset} of
+  %%   {$<, false} -> ?fmt("~nJet of gas pushes rock left~n", []);
+  %%   {$>, false} -> ?fmt("~nJet of gas pushes rock right~n", []);
+  %%   {$<, true} -> ?fmt("~nJet of gas pushes rock left, but nothing happens~n", []);
+  %%   {$>, true} -> ?fmt("~nJet of gas pushes rock right, but nothing happens~n", [])
+  %% end,
   print_state(State1),
 
-  State2 = maybe_come_to_rest_or_fall_one_step(State1),
-  drop_rocks(State2).
+  case maybe_come_to_rest_or_fall_one_step(State1) of
+    #state{cycle = undefined} = State2 ->
+      drop_rocks(State2);
+    #state{cycle = Cycle} ->
+      Cycle
+  end.
 
 fall_one_step(#state{height = Height} = State) ->
   State#state{height = Height - 1}.
@@ -148,35 +179,46 @@ maybe_come_to_rest_or_fall_one_step(#state{ winds = <<_, Rest/binary>>
 
       NewTop = max(lists:max(lists:map(fun({_, Y}) -> Y end, CaveCoordsOfRock)), Top),
 
-      State1 = State#state{ dropped_rocks = NewDroppedRocks
-                          , current_rock = undefined
-                          , top = NewTop
-                          },
-      %% io:format("New top = ~p~n", [NewTop]),
-      print_state(State1),
+      State1a = State#state{ dropped_rocks = NewDroppedRocks
+                           , top = NewTop
+                           , current_rock = CurrentRock + 1
+                           },
 
-      %% check_for_full_horizontal_line(State1),
+      case check_for_cycles(State1a) of
+        #state{cycle = undefined} = State1b ->
+          State1c = State1b,
 
-      State2 =
-        State1#state{ current_rock = CurrentRock + 1
-                    , left_offset = ?INITIAL_OFFSET
-                    , height = NewTop + ?INITIAL_DROP_HEIGHT + 1
-                    , num_remaining_rocks = NumRemainingRocks - 1
-                    , winds = Rest
-                    },
-      case State2#state.num_remaining_rocks > 0 of
-        true ->
-          ?fmt("~nA new rock begins falling:~n", []),
-          print_state(State2),
+          %% io:format("New top = ~p~n", [NewTop]),
+          print_state(State1c),
+
+          %% check_for_full_horizontal_line(State1),
+
+          State2 =
+            State1c#state{ left_offset = ?INITIAL_OFFSET
+                         , height = NewTop + ?INITIAL_DROP_HEIGHT + 1
+                         , num_remaining_rocks = NumRemainingRocks - 1
+                         , input_pos = State#state.input_pos + 1
+                         , winds = Rest
+                         },
+
+          case State2#state.num_remaining_rocks > 0 of
+            true ->
+              ?fmt("~nA new rock begins falling:~n", []),
+              print_state(State2),
+              State2;
+            false ->
+              ok
+          end,
           State2;
-        false ->
-          ok
-      end,
-      State2;
+        CycleState ->
+          CycleState
+      end;
     false ->
       ?fmt("~nRock falls 1 unit~n", []),
-      NewState = State#state{winds = Rest,
-                             height = Height - 1},
+      NewState = State#state{ winds = Rest
+                            , input_pos = State#state.input_pos + 1
+                            , height = Height - 1
+                            },
       print_state(NewState),
       NewState
   end.
@@ -184,17 +226,38 @@ maybe_come_to_rest_or_fall_one_step(#state{ winds = <<_, Rest/binary>>
 
 %%% Helpers
 
-check_for_full_horizontal_line(#state{dropped_rocks = Rocks}) ->
-  Map =
-    lists:foldl(fun({_X, Y}, Acc) ->
-                    maps:update_with(Y, fun(Old) -> Old + 1 end, 1, Acc)
-                end, #{}, sets:to_list(Rocks)),
-  lists:foreach(fun({Y, V}) when V >= 7 andalso Y > 0 ->
-                    throw({full_line, y});
-                   (_) ->
-                    ok
-                end, maps:to_list(Map)).
+check_for_cycles(#state{ cycles = Cycles
+                       , winds = <<_, Rest/binary>>
+                       , orig_winds = OrigWinds
+                       , current_rock = CurrentRock
+                       , top = Top
+                       } = State) ->
+  Winds0 = <<Rest/binary, OrigWinds/binary>>,
+  {NextWinds, _} = erlang:split_binary(Winds0, 10),
+  NumTopLayers = 10,
+  FromLayer = max(0, Top - NumTopLayers),
 
+  TopLayers = lists:sort(
+                sets:fold(
+                  fun({X, Y}, Acc) when Y >= FromLayer ->
+                      [{X, Top - Y}|Acc];
+                     (_, Acc) ->
+                      Acc
+                  end, [], State#state.dropped_rocks)),
+
+  Key = {(get_rock(CurrentRock, ?ROCKS))#rock.name, TopLayers, NextWinds},
+  %% io:format("Cycle key: ~0p~n", [Key]),
+  case maps:get(Key, Cycles, undefined) of
+    undefined ->
+      State#state{cycles = maps:put(Key, #cycle{ rock_num_start = CurrentRock + 1
+                                               , height_at_start = FromLayer - 1
+                                               }, Cycles)};
+    #cycle{ rock_num_start = RockNumStart
+          , height_at_start = HeightAtStart
+          } = Cycle ->
+      State#state{cycle = Cycle#cycle{cycle_height = (Top - NumTopLayers) - HeightAtStart,
+                                      num_rocks_in_cycle = CurrentRock - RockNumStart}}
+  end.
 
 should_come_to_rest(#state{ left_offset = Offset
                           , current_rock = CurrentRock
@@ -292,7 +355,7 @@ print_state(State) ->
 -ifdef(TEST).
 
 day17_test() ->
-  3153 = solve(?NUM_ROCKS_PART1),
-  not_solved = solve(?NUM_ROCKS_PART2).
+  3068 = solve(?NUM_ROCKS_PART1).
+%%  not_solved = solve(?NUM_ROCKS_PART2).
 
 -endif.
