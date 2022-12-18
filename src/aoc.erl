@@ -32,46 +32,31 @@ tabulate(Runs) ->
   Str =
     [io_lib:format("Module,Avg (μs),Min (μs), Max (μs),Iter,σ~n", []),
      lists:map(
-       fun(#{module := Module,
-             standard_deviation := S,
-             avg := Avg,
-             values := Values}) ->
-           AvgUsecs = trunc(Avg),
-           MinUsecs = lists:min(Values),
-           MaxUsecs = lists:max(Values),
-           io_lib:format("~s,~w,~w,~w,~w,~.2f~n",
-                         [Module, AvgUsecs, MinUsecs, MaxUsecs, length(Values), S])
+       fun({Module, Values}) ->
+           {NumVals, Avg, Min, Max} = get_avg(Values),
+           io_lib:format("~s,~w,~w,~w,~w~n",
+                         [Module, Avg, Min, Max, NumVals])
        end, Runs)],
   ok = file:write_file("/tmp/tabulate", [unicode:characters_to_binary(Str)]),
   Output = os:cmd(
              lists:flatten(io_lib:format("tabulate -1 -f github -s, /tmp/tabulate", []))),
   io:format("~ts~n", [Output]).
 
-standard_deviation(Values) ->
-  math:sqrt(variance(Values)).
-
-variance(Values) ->
-  Sum = lists:sum(Values),
-  Mean = Sum / length(Values),
-  SquaredDiffs = lists:foldl(fun(V, Acc) ->
-                                 Diff = (V - Mean),
-                                 [Diff * Diff|Acc]
-                             end, [], Values),
-  lists:sum(SquaredDiffs) / (length(Values) - 1).
-
-avg(Values) ->
-  lists:sum(Values) / length(Values).
+get_avg(Values) ->
+  %% Remove max/min
+  Min = lists:min(Values),
+  Max = lists:max(Values),
+  V0 = lists:delete(Min, Values),
+  V1 = lists:delete(Max, V0),
+  Avg = lists:sum(V1) / length(V1),
+  {length(Values), Avg, lists:min(V1), lists:max(V1)}.
 
 timing(Module) ->
-  %% io:format("Timing module ~p...~n", [Module]),
   MaxSecs = 5,
   MinIter = 5,
   MaxIter = 1000,
   Values = run(Module, MaxSecs, 0, MinIter, MaxIter),
-  #{module => Module,
-    standard_deviation => standard_deviation(Values),
-    avg => avg(Values),
-    values => Values}.
+  {Module, Values}.
 
 run(Module, MaxSecs, Iter, MinIter, MaxIter) ->
   run(Module, erlang:convert_time_unit(MaxSecs, second, microsecond), Iter, MinIter, MaxIter, []).
