@@ -13,8 +13,11 @@
 %% 2. Encode the 3-tuple coordinates into a single int to speed up map
 %% lookup
 %%
-%% 3. Using a counters-based array to track filled cubes turns out to
-%% be considerably slower than maps.
+%% 3. Surprisingly, using a counters-based array to track filled cubes
+%% turns out to be considerably slower than maps.
+%%
+%% 4. Try unrolling the inner fold in the flood fill, this did not
+%% improve things very much.
 %%
 -define(OFFSET, 2).      %% Offset to avoid negative coordinates
 -define(COORD_WIDTH, 5). %% Coordinates fit in 5 bits (<20)
