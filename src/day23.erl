@@ -86,26 +86,22 @@ do_one_round(Elves, N) ->
             [] ->
               %% No possible moves, do nothing
               Acc;
-            Moves when length(Moves) == 4 ->
+            [_, _, _, _] ->
               %% No adjacent elves, do nothing
               Acc;
             [ProposedMove|_] ->
               %% One or more possible moves, use the first one
               {maps:put(Elf, ProposedMove, Map1),
-               maps:update_with(ProposedMove, fun(Old) -> [Elf|Old] end, [Elf], Map2)}
+               maps:update_with(ProposedMove, fun(Old) -> Old + 1 end, 1, Map2)}
           end
       end, {#{}, #{}}, Elves),
 
   NonConflicingMoves =
     maps:filter(
-      fun(ElfKey, Move) ->
+      fun(_ElfKey, Move) ->
           ElfsMovingHere = maps:get(Move, MoveMap),
-          %% ?assert(lists:member(ElfKey, ElfsMovingHere)),
-          case ElfsMovingHere of
-            Elfs when length(Elfs) >= 2 ->
-              false;
-            _ ->
-              true
+          if ElfsMovingHere >= 2 -> false;
+             true -> true
           end
       end, ElfMap),
 
@@ -114,13 +110,11 @@ do_one_round(Elves, N) ->
       {false, Elves};
     _ ->
       {true, maps:fold(fun(Elf, Move, ElvesIn) ->
-                           E0 = sets:del_element(Elf, ElvesIn),
-                           E1 = sets:add_element(Move, E0),
+                           E0 = maps:remove(Elf, ElvesIn),
+                           E1 = maps:put(Move, true, E0),
                            E1
                        end, Elves, NonConflicingMoves)}
   end.
-
-
 
 possible_moves(Elf, Round, Elves) ->
   do_possible_moves(Elf, Round, 0, Elves, []).
