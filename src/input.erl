@@ -1,6 +1,7 @@
 -module(input).
 
 -export([get/1, do_get/1]).
+-compile({parse_transform, ct_expand}).
 
 input_filename(Day) ->
   io_lib:format("priv/input~2..0w.txt", [Day]).
@@ -15,8 +16,6 @@ do_get(Day) ->
       <<>>
   end.
 
--ifdef(INLINE_INPUTS).
--compile({parse_transform, ct_expand}).
 
 get(1) -> ct_expand:term(do_get(1));
 get(2) -> ct_expand:term(do_get(2));
@@ -35,12 +34,9 @@ get(14) -> ct_expand:term(do_get(14));
 get(15) -> ct_expand:term(do_get(15));
 get(16) -> ct_expand:term(do_get(16));
 get(17) -> ct_expand:term(do_get(17));
-get(18) -> ct_expand:term(do_get(18)).
-
--else.
-
--spec get(Day :: integer()) -> binary().
-get(Day) ->
-  do_get(Day).
-
--endif.
+get(18) -> ct_expand:term(do_get(18));
+get(19) -> ct_expand:term(do_get(19));
+get(20) -> ct_expand:term(do_get(20));
+get(21) -> ct_expand:term(do_get(21));
+get(22) -> ct_expand:term(do_get(22));
+get(23) -> ct_expand:term(do_get(23)).
