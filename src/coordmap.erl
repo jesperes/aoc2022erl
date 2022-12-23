@@ -19,84 +19,80 @@
         , filter/2
         ]).
 
--define(is_coord(Coord), (is_tuple(Coord))).
-
 -define(MASK, 16#ffffffff).
 -define(SHIFT, 32).
 -define(OFFSET, (1 bsl 16)).
+-define(to_int(Pos),
+        begin
+          {X, Y} = Pos,
+          ((X + ?OFFSET) bsl ?SHIFT) bor (Y + ?OFFSET)
+        end).
+-define(to_int_x(X), (X bsr ?SHIFT) - ?OFFSET).
+-define(to_int_y(Y), (Y band ?MASK) - ?OFFSET).
+-define(to_coord(Int), {?to_int_x(Int), ?to_int_y(Int)}).
 
 new() ->
   #{}.
 
-put(Coord, Value, Map) when ?is_coord(Coord) ->
-  maps:put(to_int(Coord), Value, Map).
+put(Coord, Value, Map) ->
+  maps:put(?to_int(Coord), Value, Map).
 
-get(Coord, Map) when ?is_coord(Coord) ->
-  maps:get(to_int(Coord), Map).
+get(Coord, Map) ->
+  maps:get(?to_int(Coord), Map).
 
-get(Coord, Map, Default) when ?is_coord(Coord) ->
-  maps:get(to_int(Coord), Map, Default).
+get(Coord, Map, Default) ->
+  maps:get(?to_int(Coord), Map, Default).
 
 to_list(Map) when is_map(Map) ->
   lists:map(fun({Int, V}) ->
-                {to_coord(Int), V}
+                {?to_coord(Int), V}
             end, maps:to_list(Map)).
 
 from_list(List) when is_list(List) ->
   maps:from_list(
-    lists:map(fun({Coord, V}) when ?is_coord(Coord) ->
-                  {to_int(Coord), V}
+    lists:map(fun({Coord, V}) ->
+                  {?to_int(Coord), V}
               end, List)).
 
 size(Map) ->
   maps:size(Map).
 
-is_key(Coord, Map) when ?is_coord(Coord) ->
-  maps:is_key(to_int(Coord), Map).
+is_key(Coord, Map) ->
+  maps:is_key(?to_int(Coord), Map).
 
 fold(Fun, Acc, Map) ->
   maps:fold(
-    fun(Int, V, Acc0) when is_integer(Int) ->
-        Fun(to_coord(Int), V, Acc0)
+    fun(Int, V, Acc0) ->
+        Fun(?to_coord(Int), V, Acc0)
     end, Acc, Map).
 
 keys(Map) ->
   lists:map(fun to_coord/1, maps:keys(Map)).
 
-update_with(Coord, Fun, Default, Map) when ?is_coord(Coord) ->
-  maps:update_with(to_int(Coord), Fun, Default, Map).
+update_with(Coord, Fun, Default, Map) ->
+  maps:update_with(?to_int(Coord), Fun, Default, Map).
 
-update_with(Coord, Fun, Map) when ?is_coord(Coord) ->
-  maps:update_with(to_int(Coord), Fun, Map).
+update_with(Coord, Fun, Map) ->
+  maps:update_with(?to_int(Coord), Fun, Map).
 
-remove(Coord, Map) when ?is_coord(Coord) ->
-  maps:remove(to_int(Coord), Map).
+remove(Coord, Map) ->
+  maps:remove(?to_int(Coord), Map).
 
 filter(Fun, Map) ->
   maps:filter(fun(Int, Value) ->
-                  Fun(to_coord(Int), Value)
+                  Fun(?to_coord(Int), Value)
               end, Map).
 
 %% Internal
 
-to_int({X, Y}) when X < ?MASK andalso Y < ?MASK ->
-  ((X + ?OFFSET) bsl ?SHIFT) bor (Y + ?OFFSET).
-
-to_int_x(X) ->
-  (X bsr ?SHIFT) - ?OFFSET.
-
-to_int_y(Y) ->
-  (Y band ?MASK) - ?OFFSET.
-
-to_coord(Int) when is_integer(Int) ->
-  {to_int_x(Int), to_int_y(Int)}.
-
+to_coord(Coord) ->
+  ?to_coord(Coord).
 
 -ifdef(TEST).
 
 int_coord_map_test() ->
   Coord = {100, 100},
-  ?assertEqual(Coord, to_coord(to_int(Coord))).
+  ?assertEqual(Coord, ?to_coord(?to_int(Coord))).
 
 maps_test() ->
   Coords = lists:sort([{{X, Y}, true} || X <- lists:seq(1, 100),
