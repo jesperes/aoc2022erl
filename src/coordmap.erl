@@ -19,6 +19,7 @@
         , filter/2
 
         , benchmark/1
+        , benchmark/0
         ]).
 
 -define(MASK, 16#ffffffff).
@@ -118,9 +119,23 @@ fold_test() ->
                 end, 0, CoordMap),
   ?assertEqual(100 * 100, Result).
 
+benchmark() ->
+  lists:foreach(
+    fun(B) ->
+        Values =
+          lists:foldl(
+            fun(_, Acc) ->
+                {Time, _} = timer:tc(fun() -> benchmark(B) end),
+                [Time|Acc]
+            end, [], lists:seq(1, 20)),
+        Sum = lists:sum(Values),
+        Avg = Sum / length(Values),
+        io:format("~10s: ~w ms~n", [B, trunc(Avg / 1000)])
+    end, [?MODULE, maps]).
+
 benchmark(Backend) ->
-  Coords = lists:sort([{X, Y} || X <- lists:seq(1, 50),
-                                 Y <- lists:seq(1, 50)]),
+  Coords = lists:sort([{X, Y} || X <- lists:seq(1, 1000),
+                                 Y <- lists:seq(1, 1000)]),
   Map = lists:foldl(fun(Coord, Acc) ->
                         Backend:put(Coord, 1, Acc)
                     end, Backend:new(), Coords),
