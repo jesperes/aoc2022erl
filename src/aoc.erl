@@ -48,7 +48,7 @@ get_avg(Values) ->
   Max = lists:max(Values),
   V0 = lists:delete(Min, Values),
   V1 = lists:delete(Max, V0),
-  Avg = lists:sum(V1) / length(V1),
+  Avg = trunc(lists:sum(V1) / length(V1)),
   {length(Values), Avg, lists:min(V1), lists:max(V1)}.
 
 timing(Module) ->

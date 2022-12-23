@@ -16,8 +16,6 @@
 -define(WEST, 2).
 -define(EAST, 3).
 
--define(key(X, Y), ((X bsl 16) bor Y)).
-
 %% -define(int(X), binary_to_integer(X)).
 %% -define(atom(X), binary_to_atom(X)).
 %% -define(match(Subject, RE), re:run(Subject, RE, [{capture, all_but_first, binary}])).
@@ -38,8 +36,8 @@ solve() ->
 
   Elves = lists:foldl(
             fun({Pos, _}, Acc) ->
-                {X, Y} = {Pos rem (W + 1), Pos div (W + 1)},
-                maps:put(?key(X, Y), Pos, Acc)
+                Coord = {Pos rem (W + 1), Pos div (W + 1)},
+                maps:put(Coord, true, Acc)
             end, #{}, binary:matches(Bin, <<"#">>)),
 
   %% Part 1
@@ -63,7 +61,7 @@ solve() ->
 
 limits(Elves) ->
   maps:fold(
-    fun(_, {X, Y}, {MinX, MaxX, MinY, MaxY}) ->
+    fun({X, Y}, _, {MinX, MaxX, MinY, MaxY}) ->
         {min(X, MinX),
          max(X, MaxX),
          min(Y, MinY),
@@ -82,8 +80,8 @@ do_rounds(Elves, N, Max) ->
 
 do_one_round(Elves, N) ->
   {ElfMap, MoveMap} =
-    sets:fold(
-      fun(Elf, {Map1, Map2} = Acc) ->
+    maps:fold(
+      fun(Elf, _, {Map1, Map2} = Acc) ->
           case possible_moves(Elf, N, Elves) of
             [] ->
               %% No possible moves, do nothing
@@ -98,12 +96,11 @@ do_one_round(Elves, N) ->
           end
       end, {#{}, #{}}, Elves),
 
-
   NonConflicingMoves =
     maps:filter(
-      fun(Elf, Move) ->
+      fun(ElfKey, Move) ->
           ElfsMovingHere = maps:get(Move, MoveMap),
-          ?assert(lists:member(Elf, ElfsMovingHere)),
+          %% ?assert(lists:member(ElfKey, ElfsMovingHere)),
           case ElfsMovingHere of
             Elfs when length(Elfs) >= 2 ->
               false;
@@ -139,7 +136,7 @@ do_possible_moves({X, Y} = Elf, Round, N, Elves, Moves) ->
           ?EAST  -> Px = X + 1, [{Px, Y - 1}, {Px, Y}, {Px, Y + 1} ]
         end,
 
-  case lists:any(fun(Pos) -> sets:is_element(Pos, Elves) end, Adj) of
+  case lists:any(fun(Pos) -> maps:is_key(Pos, Elves) end, Adj) of
     true ->  do_possible_moves(Elf, Round, N + 1, Elves, Moves);
     false -> do_possible_moves(Elf, Round, N + 1, Elves, [move(Elf, Dir)|Moves])
   end.
