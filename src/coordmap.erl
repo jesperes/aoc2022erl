@@ -17,6 +17,8 @@
         , update_with/4
         , remove/2
         , filter/2
+
+        , benchmark/1
         ]).
 
 -define(MASK, 16#ffffffff).
@@ -115,5 +117,18 @@ fold_test() ->
                     Acc + 1
                 end, 0, CoordMap),
   ?assertEqual(100 * 100, Result).
+
+benchmark(Backend) ->
+  Coords = lists:sort([{X, Y} || X <- lists:seq(1, 50),
+                                 Y <- lists:seq(1, 50)]),
+  Map = lists:foldl(fun(Coord, Acc) ->
+                        Backend:put(Coord, 1, Acc)
+                    end, Backend:new(), Coords),
+
+  Backend:fold(fun(_Coord, Value, Acc) ->
+                   Value + Acc
+               end, 0, Map).
+
+
 
 -endif.
