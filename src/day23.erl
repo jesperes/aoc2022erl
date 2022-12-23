@@ -16,18 +16,8 @@
 -define(WEST, 2).
 -define(EAST, 3).
 
-%% -define(int(X), binary_to_integer(X)).
-%% -define(atom(X), binary_to_atom(X)).
-%% -define(match(Subject, RE), re:run(Subject, RE, [{capture, all_but_first, binary}])).
-
-%% State record for various processing tasks
-%% -record(state, {}).
-
-%% Some commonly used types
-%% -type coord() :: {X :: integer(), Y :: integer()}.
-%% -type coord3d() :: {X :: integer(), Y :: integer(), Z :: integer()}.
-
-%% 5928 too high
+-define(MAPS, coordmap).
+%% -define(MAPS, maps).
 
 solve() ->
   Day = 23,
@@ -37,13 +27,13 @@ solve() ->
   Elves = lists:foldl(
             fun({Pos, _}, Acc) ->
                 Coord = {Pos rem (W + 1), Pos div (W + 1)},
-                maps:put(Coord, true, Acc)
-            end, #{}, binary:matches(Bin, <<"#">>)),
+                ?MAPS:put(Coord, true, Acc)
+            end, ?MAPS:new(), binary:matches(Bin, <<"#">>)),
 
   %% Part 1
   After10 = do_rounds(Elves, 0, 10),
   {MinX, MaxX, MinY, MaxY} = limits(After10),
-  P1 = (MaxX - MinX + 1) * (MaxY - MinY + 1) - maps:size(Elves),
+  P1 = (MaxX - MinX + 1) * (MaxY - MinY + 1) - ?MAPS:size(Elves),
 
   %% Part 2
   {no_move, Round, _NoMoveElves} = do_rounds(After10, 10, infinity),
@@ -52,15 +42,8 @@ solve() ->
   %% print_elves(NoMoveElves),
   {P1, P2}.
 
-%% print_elves(Elves) ->
-%%   io:format("~s~n",
-%%             [grid:to_str(
-%%                sets:fold(fun(Elem, Acc) ->
-%%                              maps:put(Elem, $#, Acc)
-%%                          end, #{}, Elves))]).
-
 limits(Elves) ->
-  maps:fold(
+  ?MAPS:fold(
     fun({X, Y}, _, {MinX, MaxX, MinY, MaxY}) ->
         {min(X, MinX),
          max(X, MaxX),
@@ -80,7 +63,7 @@ do_rounds(Elves, N, Max) ->
 
 do_one_round(Elves, N) ->
   {ElfMap, MoveMap} =
-    maps:fold(
+    ?MAPS:fold(
       fun(Elf, _, {Map1, Map2} = Acc) ->
           case possible_moves(Elf, N, Elves) of
             [] ->
@@ -91,29 +74,29 @@ do_one_round(Elves, N) ->
               Acc;
             [ProposedMove|_] ->
               %% One or more possible moves, use the first one
-              {maps:put(Elf, ProposedMove, Map1),
-               maps:update_with(ProposedMove, fun(Old) -> Old + 1 end, 1, Map2)}
+              {?MAPS:put(Elf, ProposedMove, Map1),
+               ?MAPS:update_with(ProposedMove, fun(Old) -> Old + 1 end, 1, Map2)}
           end
-      end, {#{}, #{}}, Elves),
+      end, {coordmap:new(), coordmap:new()}, Elves),
 
   NonConflicingMoves =
-    maps:filter(
+    ?MAPS:filter(
       fun(_ElfKey, Move) ->
-          ElfsMovingHere = maps:get(Move, MoveMap),
+          ElfsMovingHere = ?MAPS:get(Move, MoveMap),
           if ElfsMovingHere >= 2 -> false;
              true -> true
           end
       end, ElfMap),
 
-  case maps:size(NonConflicingMoves) of
+  case ?MAPS:size(NonConflicingMoves) of
     0 ->
       {false, Elves};
     _ ->
-      {true, maps:fold(fun(Elf, Move, ElvesIn) ->
-                           E0 = maps:remove(Elf, ElvesIn),
-                           E1 = maps:put(Move, true, E0),
-                           E1
-                       end, Elves, NonConflicingMoves)}
+      {true, ?MAPS:fold(fun(Elf, Move, ElvesIn) ->
+                            E0 = ?MAPS:remove(Elf, ElvesIn),
+                            E1 = ?MAPS:put(Move, true, E0),
+                            E1
+                        end, Elves, NonConflicingMoves)}
   end.
 
 possible_moves(Elf, Round, Elves) ->
@@ -130,7 +113,7 @@ do_possible_moves({X, Y} = Elf, Round, N, Elves, Moves) ->
           ?EAST  -> Px = X + 1, [{Px, Y - 1}, {Px, Y}, {Px, Y + 1} ]
         end,
 
-  case lists:any(fun(Pos) -> maps:is_key(Pos, Elves) end, Adj) of
+  case lists:any(fun(Pos) -> ?MAPS:is_key(Pos, Elves) end, Adj) of
     true ->  do_possible_moves(Elf, Round, N + 1, Elves, Moves);
     false -> do_possible_moves(Elf, Round, N + 1, Elves, [move(Elf, Dir)|Moves])
   end.
@@ -147,7 +130,7 @@ dir(3) -> east.
 
 -ifdef(TEST).
 
-solve_test() ->
-  ?assertEqual({3684, 862}, solve()).
+solve_test_() ->
+  {timeout, 1000, fun() -> ?assertEqual({3684, 862}, solve()) end}.
 
 -endif.
