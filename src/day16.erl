@@ -91,14 +91,19 @@ solve() ->
 visit(Valve, Minutes, Bitmask, Pressure, Answer, {Flows, Dists, Indices} = InputData) ->
   maps:fold(
     fun(Valve2, Flow, AnswerIn) ->
-        RemMins = Minutes - maps:get({Valve, Valve2}, Dists) - 1,
-        I = maps:get(Valve2, Indices),
-        if (I band Bitmask) =/= 0 orelse RemMins =< 0 ->
+        case Minutes - maps:get({Valve, Valve2}, Dists) - 1 of
+          RemMins when RemMins =< 0 ->
             AnswerIn;
-           true ->
-            visit(Valve2, RemMins, Bitmask bor I,
-                  Pressure + Flow * RemMins,
-                  AnswerIn, InputData)
+          RemMins ->
+            I = maps:get(Valve2, Indices),
+            case Bitmask band I of
+              0 ->
+                visit(Valve2, RemMins, Bitmask bor I,
+                      Pressure + Flow * RemMins,
+                      AnswerIn, InputData);
+              _ ->
+                AnswerIn
+            end
         end
     end,
     _Answer = maps:update_with(
