@@ -40,7 +40,7 @@ tabulate(Runs) ->
   ok = file:write_file("/tmp/tabulate", [unicode:characters_to_binary(Str)]),
   Output = os:cmd(
              lists:flatten(io_lib:format("tabulate -1 -f github -s, /tmp/tabulate", []))),
-  io:format("~ts~n", [Output]).
+  io:format("~n~ts~n", [Output]).
 
 get_avg(Values) ->
   %% Remove max/min

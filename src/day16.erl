@@ -7,50 +7,110 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(MAXDIST, 10000).
+
+%% Ideas borrowed from
+%% https://www.reddit.com/r/adventofcode/comments/zn6k1l/comment/j2xhog7/
+
 solve() ->
   Bin = input:get(16),
-  %%   Bin = <<"Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
-  %% Valve BB has flow rate=13; tunnels lead to valves CC, AA
-%% Valve CC has flow rate=2; tunnels lead to valves DD, BB
-%% Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
-%% Valve EE has flow rate=3; tunnels lead to valves FF, DD
-%% Valve FF has flow rate=0; tunnels lead to valves EE, GG
-%% Valve GG has flow rate=0; tunnels lead to valves FF, HH
-%% Valve HH has flow rate=22; tunnel leads to valve GG
-%% Valve II has flow rate=0; tunnels lead to valves AA, JJ
-%% Valve JJ has flow rate=21; tunnel leads to valve II">>,
+
   Lines = binary:split(Bin, <<"\n">>, [global]),
-  Valves =
+  Input =
     lists:foldl(
       fun(<<>>, Acc) -> Acc;
          (Line, Acc) ->
           {match, [Valve, FlowRate, Tunnels]} =
             re:run(Line, "Valve (.*) has flow rate=(.*); tunnels? leads? to valves? (.*)",
                    [{capture, all_but_first, binary}]),
-          Tunnels0 = binary:split(Tunnels, <<", ">>, [global]),
-          digraph:add_vertex(Acc, Valve, FlowRate),
-          lists:foreach(fun(T) ->
-                            digraph:add_edge(Acc, Valve, T)
-                        end, Tunnels0)
-          %% [{Valve, binary_to_integer(FlowRate), Tunnels0}|Acc]
-      end, digraph:new(), Lines).
+          [{binary_to_atom(Valve), binary_to_integer(FlowRate),
+            lists:map(fun binary_to_atom/1,
+                      binary:split(Tunnels, <<", ">>, [global]))}|Acc]
+      end, [], Lines),
 
-to_dot(Filename, Valves) ->
-  Str =
-    "digraph {\n" ++
-    lists:map(
-      fun({Valve, FlowRate, Tunnels}) ->
-          io_lib:format("  ~s [label=\"~s ~w\"];~n", [Valve, Valve, FlowRate]) ++
-          lists:map(fun(T) ->
-                        io_lib:format("  ~s -> ~s;~n", [Valve, T])
-                    end, Tunnels)
-      end, Valves) ++
-    "}\n",
-  file:write_file(Filename, Str).
+  Graph = lists:foldl(fun({Valve, _FlowRate, Tunnels}, Acc) ->
+                          maps:put(Valve, Tunnels, Acc)
+                      end, #{}, Input),
+
+  Valves = maps:keys(Graph),
+
+  Indices = maps:from_list(
+              lists:map(fun({Idx, Valve}) -> {Valve, 1 bsl Idx} end,
+                        lists:enumerate(0, Valves))),
+
+  Flows = lists:foldl(
+            fun({_, 0, _}, Acc) -> Acc;
+               ({Valve, FlowRate, _}, Acc) ->
+                maps:put(Valve, FlowRate, Acc)
+            end, #{}, Input),
+
+  %% Use floyd-warshall to compute the distance between any pair of
+  %% valves
+  Dists =
+    lists:foldl(
+      fun({V, L}, Acc) ->
+          case lists:member(L, maps:get(V, Graph)) of
+            true -> maps:put({V, L}, 1, Acc);
+            false -> maps:put({V, L}, ?MAXDIST, Acc)
+          end
+      end, #{}, [{V, L} || V <- Valves, L <- Valves]),
+
+  Dists0 =
+    lists:foldl(fun({K, I, J}, Acc) ->
+                    DistIJ = maps:get({I, J}, Acc),
+                    DistIK = maps:get({I, K}, Acc),
+                    DistKJ = maps:get({K, J}, Acc),
+                    maps:put({I, J}, min(DistIJ, DistIK + DistKJ), Acc)
+                end,
+                Dists,
+                [{K, I, J} || K <- Valves,
+                              I <- Valves,
+                              J <- Valves]),
+
+  InputData = {Flows, Dists0, Indices},
+
+  MaxFlows = visit('AA', 30, 0, 0, #{}, InputData),
+  Part1 = lists:max(maps:values(MaxFlows)),
+
+  Visited = visit('AA', 26, 0, 0, #{}, InputData),
+  VisitedList = maps:to_list(Visited),
+  Part2 = lists:max([V1 + V2 || {B1, V1} <- VisitedList,
+                                {B2, V2} <- VisitedList,
+                                (B1 band B2) =:= 0]),
+
+  {Part1, Part2}.
+
+
+%% Valve    -- the valve we are visiting
+%% Minutes  -- how many minutes have passed at this point
+%% Bitmask  -- a bitmask indicating which valves are open at this point
+%% Pressure -- current pressure
+%% Answer   -- a map where the keys are sets of valves (as bitmasks) and
+%%             the values are the maximum pressure found with those
+%%             particular valves open.
+visit(Valve, Minutes, Bitmask, Pressure, Answer, {Flows, Dists, Indices} = InputData) ->
+  maps:fold(
+    fun(Valve2, Flow, AnswerIn) ->
+        RemMins = Minutes - maps:get({Valve, Valve2}, Dists) - 1,
+        I = maps:get(Valve2, Indices),
+        if (I band Bitmask) =/= 0 orelse RemMins =< 0 ->
+            AnswerIn;
+           true ->
+            visit(Valve2, RemMins, Bitmask bor I,
+                  Pressure + Flow * RemMins,
+                  AnswerIn, InputData)
+        end
+    end,
+    _Answer = maps:update_with(
+                Bitmask,
+                fun(Old) ->
+                    max(Old, Pressure)
+                end, Pressure, Answer),
+    Flows).
 
 -ifdef(TEST).
 
 day13_test() ->
-  ok.
+  {1376, 1933} = solve().
 
 -endif.
