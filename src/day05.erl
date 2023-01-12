@@ -46,10 +46,10 @@ move(What, From, To, Stacks, Fun) ->
   Stacks#{From := Remaining, To := Fun(Crates) ++ ToStack}.
 
 parse_crate_line(<<$[, X, $], 32, Rest/binary>>, StackNum, Stacks) ->
-  StacksOut = maps:update_with(StackNum, fun(Old) -> Old ++ [X] end, [X], Stacks),
+  StacksOut = maps:update_with(StackNum, fun(Old) -> lists:append(Old, [X]) end, [X], Stacks),
   parse_crate_line(Rest, StackNum + 1, StacksOut); %% Reset stack num
 parse_crate_line(<<$[, X, $]>>, StackNum, Stacks) ->
-  maps:update_with(StackNum, fun(Old) -> Old ++ [X] end, [X], Stacks);
+  maps:update_with(StackNum, fun(Old) -> lists:append(Old, [X]) end, [X], Stacks);
 parse_crate_line(<<32, 32, 32, 32, Rest/binary>>, StackNum, Stacks) ->
   parse_crate_line(Rest, StackNum + 1, Stacks);
 parse_crate_line(<<32, $1, _/binary>>, _, Stacks) ->

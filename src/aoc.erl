@@ -37,11 +37,15 @@ tabulate(Runs) ->
            io_lib:format("~s,~w,~w,~w,~w~n",
                          [Module, Avg, Min, Max, NumVals])
        end, Runs)],
-  ok = file:write_file("/tmp/tabulate", [unicode:characters_to_binary(Str)]),
-  Output = os:cmd(
-             lists:flatten(io_lib:format("tabulate -1 -f github -s, /tmp/tabulate", []))),
-  io:format("~n~ts~n", [Output]).
+  case unicode:characters_to_binary(Str) of
+    Bin when is_binary(Bin) ->
+      ok = file:write_file("/tmp/tabulate", Bin),
+      Output = os:cmd(
+                 lists:flatten(io_lib:format("tabulate -1 -f github -s, /tmp/tabulate", []))),
+      io:format("~n~ts~n", [Output])
+  end.
 
+-spec get_avg(Values :: [number()]) -> {integer(), number(), number(), number()}.
 get_avg(Values) ->
   %% Remove max/min
   Min = lists:min(Values),
@@ -51,6 +55,7 @@ get_avg(Values) ->
   Avg = trunc(lists:sum(V1) / length(V1)),
   {length(Values), Avg, lists:min(V1), lists:max(V1)}.
 
+-spec timing(Module :: module()) -> {module(), [number()]}.
 timing(Module) ->
   MaxSecs = 5,
   MinIter = 5,

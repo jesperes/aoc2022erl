@@ -5,9 +5,9 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--record(state, {cwd = undefined,
+-record(state, {cwd = undefined :: [binary()] | undefined,
                 sub_dirs = #{},
-                sizes = #{}
+                sizes = #{} :: #{term() => integer()}
                }).
 
 -define(ROOT, [<<"root">>]).
@@ -34,9 +34,9 @@ to_tree([Line|Rest], #state{cwd = Cwd,
   case binary:split(Line, <<" ">>, [global]) of
     [<<"$">>, <<"cd">>, <<"/">>] ->
       to_tree(Rest, State#state{cwd = ?ROOT});
-    [<<"$">>, <<"cd">>, <<"..">>] ->
+    [<<"$">>, <<"cd">>, <<"..">>] when Cwd =/= undefined ->
       to_tree(Rest, State#state{cwd = lists:sublist(Cwd, length(Cwd) - 1)});
-    [<<"$">>, <<"cd">>, Dir] ->
+    [<<"$">>, <<"cd">>, Dir] when Cwd =/= undefined ->
       to_tree(Rest, State#state{cwd = Cwd ++ [Dir]});
     [<<"$">>, <<"ls">>] ->
       to_tree(Rest, State);
