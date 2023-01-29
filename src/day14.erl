@@ -73,7 +73,7 @@ num_units(Grid) ->
 
 -ifdef(TEST).
 
-day13_test() ->
+day14_test() ->
   {696,23610} = solve().
 
 -endif.

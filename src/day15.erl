@@ -213,7 +213,7 @@ dist({X0, Y0}, {X1, Y1}) ->
 
 -ifdef(TEST).
 
-day13_test() ->
+day15_test() ->
   {4665948, 13543690671045} = solve().
 
 -endif.
