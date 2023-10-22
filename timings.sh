@@ -1,6 +1,8 @@
 #!/bin/bash
 # shellcheck disable=SC2001
 
+# source ~/otp-install/OTP-25.3/activate
+source ~/otp-install/OTP-26.0-rc3/activate
 export APP=aoc2022erl
 
 rebar3 "do" compile,escriptize

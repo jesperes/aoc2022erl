@@ -6,136 +6,204 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(int(X), binary_to_integer(X)).
-
--record(blueprint, { ore_robot_cost
-                   , clay_robot_cost
-                   , obsidian_robot_cost
-                   , geode_robot_cost
+%% These fields must come in the same order as they appear in the
+%% blueprint, or the parser will not work.
+-record(blueprint, { nr :: integer()
+                   , ore_robot_c :: integer()
+                   , clay_robot_c :: integer()
+                   , obs_robot_ore_c :: integer()
+                   , obs_robot_clay_c :: integer()
+                   , geo_robot_ore_c :: integer()
+                   , geo_robot_obs_c :: integer()
                    }).
 
--record(state, { remaining_minutes = 24
-               , geode = 0
-               , geode_robots = 0
-               , obsidian = 0
-               , obsidian_robots = 0
-               , clay = 0
-               , clay_robots = 0
-               , ore = 0
-               , ore_robots = 1
+-record(limits, { max_obs_r :: integer()
+                , max_clay_r :: integer()
+                , max_ore_r :: integer()
+                }).
+
+-record(state, { min
+               , ore = 0 :: integer()
+               , clay = 0 :: integer()
+               , obs = 0 :: integer()
+               , geo = 0 :: integer()
+               , ore_r = 1 :: integer()
+               , clay_r = 0 :: integer()
+               , obs_r = 0 :: integer()
+               , geo_r = 0 :: integer()
                }).
 
 parse(Bin) ->
   lists:foldl(
     fun(<<>>, Acc) -> Acc;
        (Line, Acc) ->
-        {match, [ Id
-                , OreRobot_OreCost
-                , ClayRobot_OreCost
-                , ObsidianRobot_OreCost
-                , ObsidianRobot_ClayCost
-                , GeodeRobot_OreCost
-                , GeodeRobot_ObsidianCost
-                ]} =
-          re:run(Line,
-                 "Blueprint (.*): "
-                 "Each ore robot costs (.*) ore. "
-                 "Each clay robot costs (.*) ore. "
-                 "Each obsidian robot costs (.*) ore and (.*) clay. "
-                 "Each geode robot costs (.*) ore and (.*) obsidian.",
-                 [{capture, all_but_first, binary}]),
-        Blueprint = #blueprint{ ore_robot_cost = ?int(OreRobot_OreCost)
-                              , clay_robot_cost = ?int(ClayRobot_OreCost)
-                              , obsidian_robot_cost = {?int(ObsidianRobot_OreCost),
-                                                       ?int(ObsidianRobot_ClayCost)}
-                              , geode_robot_cost = {?int(GeodeRobot_OreCost),
-                                                    ?int(GeodeRobot_ObsidianCost)}},
-        maps:put(?int(Id), Blueprint, Acc)
-    end, #{}, binary:split(Bin, <<"\n">>, [global])).
+        {match, Matches} =
+          re:run(Line, "(\\d+)", [global, {capture, all_but_first, binary}]),
+
+        Bp = #blueprint{} =
+          list_to_tuple([blueprint|lists:map(fun erlang:binary_to_integer/1,
+                                             lists:flatten(Matches))]),
+
+        Limits = #limits{} =
+          list_to_tuple([limits|
+                         [Bp#blueprint.geo_robot_obs_c,
+                          Bp#blueprint.obs_robot_clay_c,
+                          lists:max([
+                            Bp#blueprint.clay_robot_c,
+                            Bp#blueprint.obs_robot_ore_c,
+                            Bp#blueprint.geo_robot_ore_c])]]),
+        [{Bp, Limits}|Acc]
+    end, [], binary:split(Bin, <<"\n">>, [global])).
 
 solve() ->
-  ok.
-  %% Bin = input:get(19),
-  %% _ Bin = <<"Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.\n"
-  %%         "Blueprint 2: Each ore robot costs 2 ore. Each clay robot costs 3 ore. Each obsidian robot costs 3 ore and 8 clay. Each geode robot costs 3 ore and 12 obsidian.\n">>,
-  %% Blueprints = parse(Bin),
-  %% quality_level(maps:get(1, Blueprints)).
-  %% maps:fold(fun(_Id, Blueprint, Acc) ->
-  %%                 Acc + quality_level(Blueprint)
-  %%             end, 0, Blueprints).
+  Bin = input:get(19),
+  Bps = parse(Bin),
+  lists:fold(
+    fun({Bp, Limits}, Acc) ->
+        search(Bp, Limits, 24) * Bp#blueprint.nr + Acc
+    end, 0, Bps).
 
-quality_level(Blueprint) ->
-  Root = #state{},
-  Queue = gb_sets:from_list([Root]),
-  Explored = sets:from_list([Root]),
-  bfs(Queue, Explored, Blueprint).
+search(Bp, Limits, Minute) ->
+  {Time, {_, Geo}} = timer:tc(fun() ->
+                          do_search(Bp, Limits, _Cache = #{}, #state{min = Minute})
+                      end),
+  io:format("Blueprint ~p got ~p geodes in ~p minutes, took ~p millis~n",
+            [Bp#blueprint.nr, Geo, Minute, Time / 1000.0]),
+  Geo.
 
-bfs(Queue, Explored, Blueprint) ->
-  {Node, Queue0} = gb_sets:take_largest(Queue),
-  erlang:display(Node),
+-spec do_search(#blueprint{}, #limits{}, map(), #state{}) ->
+        {map(), integer()}.
+do_search(_Bp, _Limits, Cache, #state{min = Min, geo = Geo} = _State) when Min == 0 ->
+  {Cache, Geo};
+do_search(Bp, Limits, Cache, State) ->
+  case maps:get(State, Cache, undefined) of
+    undefined ->
+      {NewCache, NewMax} =
+        lists:foldl(fun(Fun, {CacheIn, Max}) ->
+                        %% io:format("Recursing: ~p ~p~n", [Fun, NextState]),
+                        {CacheOut, NewMax} = Fun(Bp, Limits, CacheIn, State),
+                        {CacheOut, lists:max([Max, NewMax])}
+                    end, {Cache, 0},
+                    [fun maybe_build_geo_r/4,
+                     fun maybe_build_obs_r/4,
+                     fun maybe_build_clay_r/4,
+                     fun maybe_build_ore_r/4,
+                     fun no_build/4]),
 
-  case Node#state.remaining_minutes of
-    Min when Min == 0 ->
-      Node;
-    _Min ->
-      Nodes = maybe_build_ore_robot(Node, Blueprint, [Node]),
-      Nodes0 = maybe_build_clay_robot(Node, Blueprint, Nodes),
-      Nodes1 = maybe_build_obsidian_robot(Node, Blueprint, Nodes0),
-      Nodes2 = maybe_build_geode_robot(Node, Blueprint, Nodes1),
-      Nodes3 = lists:map(fun collect_resources/1, Nodes2),
-      %% io:format("~p~n", [Nodes3]),
-      {QueueOut, ExploredOut} =
-        lists:foldl(
-          fun(N, {Q, E} = Acc) ->
-              case sets:is_element(N, E) of
-                true -> Acc;
-                false ->
-                  {gb_sets:add_element(N, Q),
-                   sets:add_element(N, E)}
-              end
-          end, {Queue0, Explored}, Nodes3),
-      %% io:format("Queue = ~p~n", [gb_sets:to_list(QueueOut)]),
-      bfs(QueueOut, ExploredOut, Blueprint)
+      CacheOut = maps:put(State, NewMax, NewCache),
+      {CacheOut, NewMax};
+    Value ->
+      {Cache, Value}
   end.
 
-%% Build ore robot
-maybe_build_ore_robot(#state{ore = Available, ore_robots = Robots} = State,
-                      #blueprint{ore_robot_cost = Cost}, Acc) when Cost =< Available ->
-  [State#state{ore = Available - Cost, ore_robots = Robots + 1}|Acc];
-maybe_build_ore_robot(_, _, Acc) -> Acc.
+%% Maybe build geode robot
+maybe_build_geo_r(
+  #blueprint{geo_robot_obs_c = ObsC, geo_robot_ore_c = OreC} = Bp,
+  Limits,
+  Cache,
+  #state{ore = Ore, obs = Obs} = State)
+  when
+    Obs >= ObsC andalso Ore >= OreC ->
 
-%% Build clay robot
-maybe_build_clay_robot(#state{ore = Available, clay_robots = Robots} = State,
-                      #blueprint{clay_robot_cost = Cost}, Acc) when Cost =< Available ->
-  [State#state{ore = Available - Cost, clay_robots = Robots + 1}|Acc];
-maybe_build_clay_robot(_, _, Acc) -> Acc.
+  State0 = State#state{
+             min = State#state.min - 1,
+             ore = State#state.ore + State#state.ore_r - OreC,
+             clay = State#state.clay + State#state.clay_r,
+             obs = State#state.obs + State#state.obs_r - ObsC,
+             geo = State#state.geo + State#state.geo_r,
+             %% no change in ore_r
+             %% no change in clay_r
+             %% no change in obs_r
+             geo_r = State#state.geo_r + 1
+            },
+  do_search(Bp, Limits, Cache, State0);
+maybe_build_geo_r(_Bp, _, Cache, _State) ->
+  {Cache, 0}.
 
-%% Build obsidian robot
-maybe_build_obsidian_robot(#state{ore = AvailableOre, clay = AvailableClay, obsidian_robots = Robots} = State,
-                           #blueprint{obsidian_robot_cost = {OreCost, ClayCost}}, Acc) when
-    OreCost =< AvailableOre andalso
-    ClayCost =< AvailableClay ->
-  [State#state{ore = AvailableOre - OreCost,
-               clay = AvailableClay - ClayCost,
-               obsidian_robots = Robots + 1}|Acc];
-maybe_build_obsidian_robot(_, _, Acc) -> Acc.
+%% Maybe build obsidian robot
+maybe_build_obs_r(
+  #blueprint{obs_robot_ore_c = OreC, obs_robot_clay_c = ClayC} = Bp,
+  #limits{max_obs_r = MaxObs} = Limits,
+  Cache,
+  #state{ore = Ore, clay = Clay, obs_r = ObsR} = State)
+  when
+    Ore >= OreC andalso Clay >= ClayC andalso ObsR < MaxObs ->
+  State0 = State#state{
+             min = State#state.min - 1,
+             ore = State#state.ore + State#state.ore_r - OreC,
+             clay = State#state.clay + State#state.clay_r - ClayC,
+             obs = State#state.obs + State#state.obs_r,
+             geo = State#state.geo + State#state.geo_r,
+             %% no change in ore_r
+             %% no change in clay_r
+             obs_r = State#state.obs_r + 1
+             %% no change in geo_r
+            },
+  do_search(Bp, Limits, Cache, State0);
+maybe_build_obs_r(_Bp, _Limits, Cache, _State) ->
+  {Cache, 0}.
 
-%% Build geode robot
-maybe_build_geode_robot(#state{ore = AvailableOre, obsidian = AvailableObsidian, geode_robots = Robots} = State,
-                        #blueprint{geode_robot_cost = {OreCost, ObsidianCost}}, Acc) when
-    OreCost =< AvailableOre andalso
-    ObsidianCost =< AvailableObsidian ->
-  [State#state{ore = AvailableOre - OreCost,
-               obsidian = AvailableObsidian - ObsidianCost,
-               geode_robots = Robots + 1}|Acc];
-maybe_build_geode_robot(_, _, Acc) -> Acc.
+%% Maybe build clay robot
+maybe_build_clay_r(
+  #blueprint{clay_robot_c = OreC} = Bp,
+  #limits{max_clay_r = MaxClay} = Limits,
+  Cache,
+  #state{clay_r = ClayR, ore = Ore} = State)
+  when
+    Ore >= OreC andalso ClayR < MaxClay ->
+  State0 = State#state{
+             min = State#state.min - 1,
+             ore = State#state.ore + State#state.ore_r - OreC,
+             clay = State#state.clay + State#state.clay_r,
+             obs = State#state.obs + State#state.obs_r,
+             geo = State#state.geo + State#state.geo_r,
+             %% no change in ore_r
+             clay_r = State#state.clay_r + 1
+             %% no change in obs_r
+             %% no change in geo_r
+            },
+  do_search(Bp, Limits, Cache, State0);
 
-collect_resources(Node) ->
-  Node#state{ore = Node#state.ore + Node#state.ore_robots,
-             clay = Node#state.clay + Node#state.clay_robots,
-             obsidian = Node#state.obsidian + Node#state.obsidian_robots,
-             geode = Node#state.geode + Node#state.geode_robots,
-             remaining_minutes = Node#state.remaining_minutes - 1}.
+maybe_build_clay_r(_Bp, _Limits, Cache, _State) ->
+  {Cache, 0}.
+
+%% Maybe build ore robot
+maybe_build_ore_r(
+  #blueprint{ore_robot_c = OreC} = Bp,
+  #limits{max_ore_r = MaxOre} = Limits,
+  Cache,
+  #state{ore_r = OreR, ore = Ore} = State)
+  when
+    Ore >= OreC andalso OreR < MaxOre ->
+  State0 = State#state{
+             min = State#state.min - 1,
+             ore = State#state.ore + State#state.ore_r - OreC,
+             clay = State#state.clay + State#state.clay_r,
+             obs = State#state.obs + State#state.obs_r,
+             geo = State#state.geo + State#state.geo_r,
+             ore_r = State#state.ore_r + 1
+             %% no chanbe in clay_r
+             %% no change in obs_r
+             %% no change in geo_r
+            },
+  do_search(Bp, Limits, Cache, State0);
+maybe_build_ore_r(_Bp, _Limits, Cache, _State) ->
+  {Cache, 0}.
+
+%% Don't build anything
+no_build(Bp, Limits, Cache, State) ->
+  State0 = State#state{
+             min = State#state.min - 1,
+             ore = State#state.ore + State#state.ore_r,
+             clay = State#state.clay + State#state.clay_r,
+             obs = State#state.obs + State#state.obs_r,
+             geo = State#state.geo + State#state.geo_r
+             %% no change in ore_R
+             %% no change in clay_r
+             %% no change in obs_r
+             %% no change in geo_r
+            },
+  do_search(Bp, Limits, Cache, State0).
 
 -ifdef(TEST).
 

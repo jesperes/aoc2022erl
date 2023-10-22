@@ -60,6 +60,8 @@ timing(Module) ->
   MaxSecs = 5,
   MinIter = 5,
   MaxIter = 1000,
+  %% warmup
+  run(Module, 5, 0, 1, 10000),
   Values = run(Module, MaxSecs, 0, MinIter, MaxIter),
   {Module, Values}.
 
