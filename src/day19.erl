@@ -58,8 +58,8 @@ parse(Bin) ->
                           [0, 0, 0]),
 
         Bp0 =
-          Bp#blueprint{max_obs_r = Bp#blueprint.geo_robot_obs_c,
-                       max_clay_r = Bp#blueprint.obs_robot_clay_c,
+          Bp#blueprint{max_obs_r = Bp#blueprint.geo_robot_obs_c - 1,
+                       max_clay_r = Bp#blueprint.obs_robot_clay_c - 2,
                        max_ore_r =
                          lists:max([Bp#blueprint.clay_robot_c,
                                     Bp#blueprint.obs_robot_ore_c,
@@ -82,11 +82,11 @@ solve() ->
     lists:map(
       fun({part1, Bp}) ->
           spawn(fun() ->
-                    Parent ! {part1, search(Bp, 24) * Bp#blueprint.nr}
+                    Parent ! {part1, search(Bp, 2, 24) * Bp#blueprint.nr}
                 end);
          ({part2, Bp}) ->
           spawn(fun() ->
-                    Parent ! {part2, search(Bp, 32)}
+                    Parent ! {part2, search(Bp, 18, 32)}
                 end)
       end, AllRuns),
 
@@ -99,18 +99,19 @@ solve() ->
     end, {0, 0}, Pids).
 
 
+
 solve0() ->
   Bps = parse(input:get(19)),
   lists:foreach(fun(#blueprint{nr = 21} = Bp) ->
-                    ?assertEqual(13, search(Bp, 24));
+                    ?assertEqual(13, search(Bp, 2, 24));
                    (_) ->
                     ok
                 end, Bps).
 
-search(Bp, Minute) ->
+search(Bp, Cutoff, Minute) ->
   {Time, {G, _}} =
     timer:tc(fun() ->
-                 do_search2(Bp, #{}, Minute, 0, 0, 0, 0, 1, 0, 0, 0)
+                 do_search2(Bp, #{cutoff => Cutoff}, Minute, 0, 0, 0, 0, 1, 0, 0, 0)
              end),
   io:format("[~p] Blueprint ~p got ~p geodes in ~p minutes, took ~p millis~n",
             [self(), Bp#blueprint.nr, G, Minute, Time / 1000.0]),
@@ -119,7 +120,6 @@ search(Bp, Minute) ->
 do_search2(_Bp, Cache, _Min = 0, _O, _C, _B, G, _OR, _CR, _BR, _GR) ->
   {G, Cache};
 do_search2(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
-  Key = {Min, O, C, B, G, OR, CR, BR, GR},
   #blueprint{ore_robot_c = OOC,
              clay_robot_c = COC,
              obs_robot_ore_c = BOC,
@@ -129,39 +129,73 @@ do_search2(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
              max_ore_r = MaxOR,
              max_clay_r = MaxCR,
              max_obs_r = MaxBR} = Bp,
+  case {maps:get(cutoff, Cache, 0), maps:get(Min, Cache, undefined)} of
+    {Cutoff, _} when
+        Min < Cutoff andalso
+        OR < MaxOR andalso
+        CR < MaxCR andalso
+        BR < MaxBR ->
+      {0, Cache};
+    %% {_, {Oc, Cc, Bc, Gc, ORc, CRc, BRc, GRc}} when
+    %%     Oc >= O andalso
+    %%     Cc >= C andalso
+    %%     Bc >= B andalso
+    %%     Gc >= G andalso
+    %%     ORc >= OR andalso
+    %%     CRc >= CR andalso
+    %%     BRc >= BR andalso
+    %%     GRc >= GR ->
 
-  case maps:get(Key, Cache, undefined) of
-    Value when is_integer(Value) ->
-      {Value, Cache};
-    undefined ->
-      {Max0, Cache0} = %% Geode
-        if B >= GBC andalso O >= GOC ->
-            do_search2(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
-           true -> {0, Cache}
-        end,
+    %%   %% We have already received a result at this minute, and we have
+    %%   %% less than or equal amount of resources now, so there is no
+    %%   %% point in continuing.
+    %%   {Gc, Cache};
+    {_, _CachedResult} ->
+      %% We need to explore this node; we have more resources or
+      %% robots than the last time we visited this minute (or we have
+      %% never been here before)
 
-      {Max1, Cache1} = %% Obsidian
-        if C >= BCC andalso O >= BOC andalso BR < MaxBR ->
-            do_search2(Bp, Cache0, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
-           true -> {0, Cache0}
-        end,
+      if B >= GBC andalso O >= GOC ->
+          do_search2(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
+         true ->
+          %% No need to explore other branches if we have already
+          %% built a geode robot
+          {Max0, Cache0} = %% Obsidian
+            if C >= BCC andalso O >= BOC andalso BR < MaxBR ->
+                do_search2(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
+               true -> {0, Cache}
+            end,
 
-      {Max2, Cache2} = %% Clay
-        if O >= COC andalso CR < MaxCR ->
-            do_search2(Bp, Cache1, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
-           true -> {0, Cache1}
-        end,
+          {Max1, Cache1} = %% Clay
+            if O >= COC andalso CR < MaxCR ->
+                do_search2(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
+               true -> {0, Cache0}
+            end,
 
-      {Max3, Cache3} = %% Ore
-        if O >= OOC andalso OR < MaxOR ->
-            do_search2(Bp, Cache2, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
-           true -> {0, Cache2}
-        end,
+          {Max2, Cache2} = %% Ore
+            if O >= OOC andalso OR < MaxOR ->
+                do_search2(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
+               true -> {0, Cache1}
+            end,
 
-      {Max4, Cache4} = do_search2(Bp, Cache3, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
+          {Max3, Cache3} = do_search2(Bp, Cache2, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
+          MaxG = lists:max([Max0, Max1, Max2, Max3]),
+          {MaxG, Cache3}
+      end
 
-      Max = lists:max([Max0, Max1, Max2, Max3, Max4]),
-      {Max, maps:put(Key, Max, Cache4)}
+      %% case CachedResult of
+      %%   undefined ->
+      %%     %% We have never been here before, so cache this result
+      %%     {MaxG, maps:put(Min, {O, C, B, G, OR, CR, BR, GR}, Cache4)};
+      %%   {_, _, Gc, _, _, _, _} when MaxG > Gc ->
+      %%     %% We got more geodes this time than the previous time
+      %%     %% we visited this minute, so cache this result.
+      %%     {MaxG, maps:put(Min, {O, C, B, G, OR, CR, BR, GR}, Cache4)};
+      %%   _ ->
+      %%     %% We did not get more geodes this time, so discard this
+      %%     %% result
+      %%     {0, Cache4}
+      %% end
   end.
 
 -ifdef(TEST).
