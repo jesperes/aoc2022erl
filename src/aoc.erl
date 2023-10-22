@@ -50,18 +50,21 @@ get_avg(Values) ->
   %% Remove max/min
   Min = lists:min(Values),
   Max = lists:max(Values),
-  V0 = lists:delete(Min, Values),
-  V1 = lists:delete(Max, V0),
+  V1 = if length(Values) == 1 ->
+           Values;
+          true ->
+           lists:delete(Max, lists:delete(Min, Values))
+       end,
   Avg = trunc(lists:sum(V1) / length(V1)),
   {length(Values), Avg, lists:min(V1), lists:max(V1)}.
 
 -spec timing(Module :: module()) -> {module(), [number()]}.
 timing(Module) ->
   MaxSecs = 5,
-  MinIter = 5,
+  MinIter = 1,
   MaxIter = 1000,
   %% warmup
-  run(Module, 5, 0, 1, 10000),
+  %% run(Module, 5, 0, 1, 10000),
   Values = run(Module, MaxSecs, 0, MinIter, MaxIter),
   {Module, Values}.
 

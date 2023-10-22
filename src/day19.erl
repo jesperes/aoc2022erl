@@ -6,6 +6,30 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+%% Variable names
+%%
+%% O: Ore
+%% C: Clay
+%% B: Obsidian
+%% G: Geodes
+%%
+%% OR: Number of ore robots
+%% CR: Number of clay robots
+%% BR: Number of obsidian robots
+%% GR: Number of geode robots
+%%
+%% OOC: Ore robot ore cost
+%% COC: Clay robot ore cost
+%% BOC: Obsidian robot ore cost
+%% BCC: Obsidian robot clay cost
+%% GOC: Geode robot ore cost
+%% GBC: Geode robot obsidian cost
+%%
+%% MaxOR: Maximum ore cost of any robot
+%% MaxCR: Maximum clay cost of any robot
+%% MaxBR: Maximum obsidian cost of any robot
+
+
 %% These fields must come in the same order as they appear in the
 %% blueprint, or the parser will not work.
 -record(blueprint, { nr :: integer()
@@ -15,23 +39,10 @@
                    , obs_robot_clay_c :: integer()
                    , geo_robot_ore_c :: integer()
                    , geo_robot_obs_c :: integer()
+                   , max_obs_r :: integer()
+                   , max_clay_r :: integer()
+                   , max_ore_r :: integer()
                    }).
-
--record(limits, { max_obs_r :: integer()
-                , max_clay_r :: integer()
-                , max_ore_r :: integer()
-                }).
-
--record(state, { min
-               , ore = 0 :: integer()
-               , clay = 0 :: integer()
-               , obs = 0 :: integer()
-               , geo = 0 :: integer()
-               , ore_r = 1 :: integer()
-               , clay_r = 0 :: integer()
-               , obs_r = 0 :: integer()
-               , geo_r = 0 :: integer()
-               }).
 
 parse(Bin) ->
   lists:foldl(
@@ -41,169 +52,117 @@ parse(Bin) ->
           re:run(Line, "(\\d+)", [global, {capture, all_but_first, binary}]),
 
         Bp = #blueprint{} =
-          list_to_tuple([blueprint|lists:map(fun erlang:binary_to_integer/1,
-                                             lists:flatten(Matches))]),
+          list_to_tuple([blueprint] ++
+                          lists:map(fun erlang:binary_to_integer/1,
+                                    lists:flatten(Matches)) ++
+                          [0, 0, 0]),
 
-        Limits = #limits{} =
-          list_to_tuple([limits|
-                         [Bp#blueprint.geo_robot_obs_c,
-                          Bp#blueprint.obs_robot_clay_c,
-                          lists:max([
-                            Bp#blueprint.clay_robot_c,
-                            Bp#blueprint.obs_robot_ore_c,
-                            Bp#blueprint.geo_robot_ore_c])]]),
-        [{Bp, Limits}|Acc]
+        Bp0 =
+          Bp#blueprint{max_obs_r = Bp#blueprint.geo_robot_obs_c,
+                       max_clay_r = Bp#blueprint.obs_robot_clay_c,
+                       max_ore_r =
+                         lists:max([Bp#blueprint.clay_robot_c,
+                                    Bp#blueprint.obs_robot_ore_c,
+                                    Bp#blueprint.geo_robot_ore_c])},
+
+        [Bp0|Acc]
     end, [], binary:split(Bin, <<"\n">>, [global])).
 
 solve() ->
+  Parent = self(),
   Bin = input:get(19),
-  Bps = parse(Bin),
-  lists:fold(
-    fun({Bp, Limits}, Acc) ->
-        search(Bp, Limits, 24) * Bp#blueprint.nr + Acc
-    end, 0, Bps).
+  Bps = lists:reverse(parse(Bin)),
+  {Bps2, _} = lists:split(3, Bps),
 
-search(Bp, Limits, Minute) ->
-  {Time, {_, Geo}} = timer:tc(fun() ->
-                          do_search(Bp, Limits, _Cache = #{}, #state{min = Minute})
-                      end),
-  io:format("Blueprint ~p got ~p geodes in ~p minutes, took ~p millis~n",
-            [Bp#blueprint.nr, Geo, Minute, Time / 1000.0]),
-  Geo.
+  AllRuns =
+    lists:map(fun(Bp) -> {part1, Bp} end, Bps) ++
+    lists:map(fun(Bp) -> {part2, Bp} end, Bps2),
 
--spec do_search(#blueprint{}, #limits{}, map(), #state{}) ->
-        {map(), integer()}.
-do_search(_Bp, _Limits, Cache, #state{min = Min, geo = Geo} = _State) when Min == 0 ->
-  {Cache, Geo};
-do_search(Bp, Limits, Cache, State) ->
-  case maps:get(State, Cache, undefined) of
+  Pids =
+    lists:map(
+      fun({part1, Bp}) ->
+          spawn(fun() ->
+                    Parent ! {part1, search(Bp, 24) * Bp#blueprint.nr}
+                end);
+         ({part2, Bp}) ->
+          spawn(fun() ->
+                    Parent ! {part2, search(Bp, 32)}
+                end)
+      end, AllRuns),
+
+  lists:foldl(
+    fun(_, {P1, P2}) ->
+        receive
+          {part1, N} -> {N + P1, P2};
+          {part2, N} -> {P2, N + P2}
+        end
+    end, {0, 0}, Pids).
+
+
+solve0() ->
+  Bps = parse(input:get(19)),
+  lists:foreach(fun(#blueprint{nr = 21} = Bp) ->
+                    ?assertEqual(13, search(Bp, 24));
+                   (_) ->
+                    ok
+                end, Bps).
+
+search(Bp, Minute) ->
+  {Time, {G, _}} =
+    timer:tc(fun() ->
+                 do_search2(Bp, #{}, Minute, 0, 0, 0, 0, 1, 0, 0, 0)
+             end),
+  io:format("[~p] Blueprint ~p got ~p geodes in ~p minutes, took ~p millis~n",
+            [self(), Bp#blueprint.nr, G, Minute, Time / 1000.0]),
+  G.
+
+do_search2(_Bp, Cache, _Min = 0, _O, _C, _B, G, _OR, _CR, _BR, _GR) ->
+  {G, Cache};
+do_search2(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
+  Key = {Min, O, C, B, G, OR, CR, BR, GR},
+  #blueprint{ore_robot_c = OOC,
+             clay_robot_c = COC,
+             obs_robot_ore_c = BOC,
+             obs_robot_clay_c = BCC,
+             geo_robot_ore_c = GOC,
+             geo_robot_obs_c = GBC,
+             max_ore_r = MaxOR,
+             max_clay_r = MaxCR,
+             max_obs_r = MaxBR} = Bp,
+
+  case maps:get(Key, Cache, undefined) of
+    Value when is_integer(Value) ->
+      {Value, Cache};
     undefined ->
-      {NewCache, NewMax} =
-        lists:foldl(fun(Fun, {CacheIn, Max}) ->
-                        %% io:format("Recursing: ~p ~p~n", [Fun, NextState]),
-                        {CacheOut, NewMax} = Fun(Bp, Limits, CacheIn, State),
-                        {CacheOut, lists:max([Max, NewMax])}
-                    end, {Cache, 0},
-                    [fun maybe_build_geo_r/4,
-                     fun maybe_build_obs_r/4,
-                     fun maybe_build_clay_r/4,
-                     fun maybe_build_ore_r/4,
-                     fun no_build/4]),
+      {Max0, Cache0} = %% Geode
+        if B >= GBC andalso O >= GOC ->
+            do_search2(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
+           true -> {0, Cache}
+        end,
 
-      CacheOut = maps:put(State, NewMax, NewCache),
-      {CacheOut, NewMax};
-    Value ->
-      {Cache, Value}
+      {Max1, Cache1} = %% Obsidian
+        if C >= BCC andalso O >= BOC andalso BR < MaxBR ->
+            do_search2(Bp, Cache0, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
+           true -> {0, Cache0}
+        end,
+
+      {Max2, Cache2} = %% Clay
+        if O >= COC andalso CR < MaxCR ->
+            do_search2(Bp, Cache1, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
+           true -> {0, Cache1}
+        end,
+
+      {Max3, Cache3} = %% Ore
+        if O >= OOC andalso OR < MaxOR ->
+            do_search2(Bp, Cache2, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
+           true -> {0, Cache2}
+        end,
+
+      {Max4, Cache4} = do_search2(Bp, Cache3, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
+
+      Max = lists:max([Max0, Max1, Max2, Max3, Max4]),
+      {Max, maps:put(Key, Max, Cache4)}
   end.
-
-%% Maybe build geode robot
-maybe_build_geo_r(
-  #blueprint{geo_robot_obs_c = ObsC, geo_robot_ore_c = OreC} = Bp,
-  Limits,
-  Cache,
-  #state{ore = Ore, obs = Obs} = State)
-  when
-    Obs >= ObsC andalso Ore >= OreC ->
-
-  State0 = State#state{
-             min = State#state.min - 1,
-             ore = State#state.ore + State#state.ore_r - OreC,
-             clay = State#state.clay + State#state.clay_r,
-             obs = State#state.obs + State#state.obs_r - ObsC,
-             geo = State#state.geo + State#state.geo_r,
-             %% no change in ore_r
-             %% no change in clay_r
-             %% no change in obs_r
-             geo_r = State#state.geo_r + 1
-            },
-  do_search(Bp, Limits, Cache, State0);
-maybe_build_geo_r(_Bp, _, Cache, _State) ->
-  {Cache, 0}.
-
-%% Maybe build obsidian robot
-maybe_build_obs_r(
-  #blueprint{obs_robot_ore_c = OreC, obs_robot_clay_c = ClayC} = Bp,
-  #limits{max_obs_r = MaxObs} = Limits,
-  Cache,
-  #state{ore = Ore, clay = Clay, obs_r = ObsR} = State)
-  when
-    Ore >= OreC andalso Clay >= ClayC andalso ObsR < MaxObs ->
-  State0 = State#state{
-             min = State#state.min - 1,
-             ore = State#state.ore + State#state.ore_r - OreC,
-             clay = State#state.clay + State#state.clay_r - ClayC,
-             obs = State#state.obs + State#state.obs_r,
-             geo = State#state.geo + State#state.geo_r,
-             %% no change in ore_r
-             %% no change in clay_r
-             obs_r = State#state.obs_r + 1
-             %% no change in geo_r
-            },
-  do_search(Bp, Limits, Cache, State0);
-maybe_build_obs_r(_Bp, _Limits, Cache, _State) ->
-  {Cache, 0}.
-
-%% Maybe build clay robot
-maybe_build_clay_r(
-  #blueprint{clay_robot_c = OreC} = Bp,
-  #limits{max_clay_r = MaxClay} = Limits,
-  Cache,
-  #state{clay_r = ClayR, ore = Ore} = State)
-  when
-    Ore >= OreC andalso ClayR < MaxClay ->
-  State0 = State#state{
-             min = State#state.min - 1,
-             ore = State#state.ore + State#state.ore_r - OreC,
-             clay = State#state.clay + State#state.clay_r,
-             obs = State#state.obs + State#state.obs_r,
-             geo = State#state.geo + State#state.geo_r,
-             %% no change in ore_r
-             clay_r = State#state.clay_r + 1
-             %% no change in obs_r
-             %% no change in geo_r
-            },
-  do_search(Bp, Limits, Cache, State0);
-
-maybe_build_clay_r(_Bp, _Limits, Cache, _State) ->
-  {Cache, 0}.
-
-%% Maybe build ore robot
-maybe_build_ore_r(
-  #blueprint{ore_robot_c = OreC} = Bp,
-  #limits{max_ore_r = MaxOre} = Limits,
-  Cache,
-  #state{ore_r = OreR, ore = Ore} = State)
-  when
-    Ore >= OreC andalso OreR < MaxOre ->
-  State0 = State#state{
-             min = State#state.min - 1,
-             ore = State#state.ore + State#state.ore_r - OreC,
-             clay = State#state.clay + State#state.clay_r,
-             obs = State#state.obs + State#state.obs_r,
-             geo = State#state.geo + State#state.geo_r,
-             ore_r = State#state.ore_r + 1
-             %% no chanbe in clay_r
-             %% no change in obs_r
-             %% no change in geo_r
-            },
-  do_search(Bp, Limits, Cache, State0);
-maybe_build_ore_r(_Bp, _Limits, Cache, _State) ->
-  {Cache, 0}.
-
-%% Don't build anything
-no_build(Bp, Limits, Cache, State) ->
-  State0 = State#state{
-             min = State#state.min - 1,
-             ore = State#state.ore + State#state.ore_r,
-             clay = State#state.clay + State#state.clay_r,
-             obs = State#state.obs + State#state.obs_r,
-             geo = State#state.geo + State#state.geo_r
-             %% no change in ore_R
-             %% no change in clay_r
-             %% no change in obs_r
-             %% no change in geo_r
-            },
-  do_search(Bp, Limits, Cache, State0).
 
 -ifdef(TEST).
 
