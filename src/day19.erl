@@ -72,7 +72,6 @@ solve() ->
   {solve(1), solve(2)}.
 
 solve(1) ->
-  ?debugFmt("Starting part 1", []),
   Parent = self(),
   Bin = input:get(19),
   Bps = lists:reverse(parse(Bin)),
@@ -91,10 +90,10 @@ solve(1) ->
         end
     end, 0, Pids1);
 solve(2) ->
-  ?debugFmt("Starting part 2", []),
   Parent = self(),
   Bin = input:get(19),
-  Bps = lists:reverse(parse(Bin)),
+  {Bps, _} = lists:split(3, lists:reverse(parse(Bin))),
+
   Pids1 =
     lists:map(
       fun(Bp) ->
@@ -111,12 +110,7 @@ solve(2) ->
     end, 1, Pids1).
 
 search(Bp, Minute) ->
-  {Time, {G, Cache}} =
-    timer:tc(fun() ->
-                 dfs(Bp, #{}, [], Minute, 0, 0, 0, 0, 1, 0, 0, 0)
-             end),
-  ?debugFmt("[~p] Blueprint ~p got ~p geodes in ~p minutes, took ~p millis, states explored = ~p",
-            [self(), Bp#blueprint.nr, G, Minute, Time / 1000.0, maps:get(states, Cache)]),
+  {G, _} = dfs(Bp, #{}, [], Minute, 0, 0, 0, 0, 1, 0, 0, 0),
   G.
 
 dfs(_Bp, Cache, _SkipList, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
@@ -151,11 +145,6 @@ dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
     _ when CanBuildGeo ->
       dfs(Bp, Cache, [], Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
 
-    %% If there are 2 minutes left and we are not building an obsidian
-    %% robot, we can short-circuit here.
-    _ when Min == 2 andalso not CanBuildObs ->
-      {G + GR * 2, Cache};
-
     _ ->
       {Max0, Cache0} =
         ?IF(CanBuildObs andalso not SkipObs,
@@ -186,8 +175,8 @@ dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
 -ifdef(TEST).
 
 day19_test_() ->
-  [ {timeout, 60000, fun() -> 1382 = solve(1) end}
-  %% , {timeout, 60000, fun() -> 31740 = solve(2) end}
+  [ ?_assertEqual(1382, solve(1))
+  , ?_assertEqual(31740, solve(2))
   ].
 
 -endif.
