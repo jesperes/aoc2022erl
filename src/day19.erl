@@ -142,39 +142,37 @@ dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
   case maps:get(Key, Cache, undefined) of
     Value when is_integer(Cache) ->
       {Value, Cache};
+
+    %% If we can build a geode robot, do only that
+    _ when CanBuildGeo ->
+      dfs(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
+
+    %% If there are 2 minutes left and we are not building an obsidian
+    %% robot, we can short-circuit here.
+    _ when Min == 2 andalso not CanBuildObs ->
+      {G + GR * 2, Cache};
+
     _ ->
-      if CanBuildGeo ->
-          dfs(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
-         true ->
-          %% No need to explore other branches if we have already
-          %% built a geode robot
-          {Max0, Cache0} =
-            if CanBuildObs ->
-                dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
-               true -> {0, Cache}
-            end,
+      {Max0, Cache0} =
+        if CanBuildObs ->
+            dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
+           true -> {0, Cache}
+        end,
 
-          if Min == 2 ->
-              %% If there are 2 minutes left and we are not building an
-              %% obsidian robot, we can short-circuit here.
-              {G + GR * 2, Cache0};
-             true ->
-              {Max1, Cache1} =
-                if CanBuildClay ->
-                    dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
-                   true -> {0, Cache0}
-                end,
+      {Max1, Cache1} =
+        if CanBuildClay ->
+            dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
+           true -> {0, Cache0}
+        end,
 
-              {Max2, Cache2} =
-                if CanBuildOre ->
-                    dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
-                   true -> {0, Cache1}
-                end,
+      {Max2, Cache2} =
+        if CanBuildOre ->
+            dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
+           true -> {0, Cache1}
+        end,
 
-              {Max3, Cache3} = dfs(Bp, Cache2, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
-              {lists:max([Max0, Max1, Max2, Max3]), Cache3}
-          end
-      end
+      {Max3, Cache3} = dfs(Bp, Cache2, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
+      {lists:max([Max0, Max1, Max2, Max3]), Cache3}
   end.
 
 -ifdef(TEST).
