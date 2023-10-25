@@ -139,28 +139,36 @@ dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
       dfs(Bp, Cache, [], Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
 
     _ ->
+      %% Build obsidian
       {Max0, Cache0} =
         ?IF(CanBuildObs andalso not SkipObs,
             dfs(Bp, Cache, [], Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR),
             {0, Cache}),
 
+      %% Build clay
       {Max1, Cache1} =
         ?IF(CanBuildClay andalso not SkipClay,
             dfs(Bp, Cache0, [], Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR),
             {0, Cache0}),
 
+      %% Build ore
       {Max2, Cache2} =
         ?IF(CanBuildOre andalso not SkipOre,
             dfs(Bp, Cache1, [], Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR),
             {0, Cache1}),
 
+      %% Build nothing, just let robots mine new resources. In this
+      %% case pass down a `SkipList' to avoid building resources next
+      %% turn that we could've build this time -- if we could have
+      %% built it this time, there is no point in waiting, just to
+      %% build that same resource next time.
       SkipList0 =
         ?IF(CanBuildOre, [ore], []) ++
         ?IF(CanBuildClay, [clay], []) ++
         ?IF(CanBuildObs, [obs], []),
-
       {Max3, Cache3} = dfs(Bp, Cache2, SkipList0, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
 
+      %% Collect the maximum values found
       MaxOut = lists:max([Max0, Max1, Max2, Max3]),
       {MaxOut, Cache3}
   end.
