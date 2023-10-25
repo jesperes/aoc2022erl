@@ -68,46 +68,39 @@ parse(Bin) ->
         [Bp0|Acc]
     end, [], binary:split(Bin, <<"\n">>, [global])).
 
-solve() ->
-  {solve(1), solve(2)}.
+plus(A, B) ->
+  A + B.
+mult(A, B) ->
+  A * B.
 
-solve(1) ->
+solve() ->
   Parent = self(),
   Bin = input:get(19),
   Bps = lists:reverse(parse(Bin)),
-  Pids1 =
-    lists:map(
-      fun(Bp) ->
-          spawn(fun() ->
-                    Parent ! search(Bp, 24) * Bp#blueprint.nr
-                end)
-      end, Bps),
+  {Bps2, _} = lists:split(3, lists:reverse(parse(Bin))),
+
+  %% Test all blueprints in parallel
+  Pids =
+    lists:map(fun(Bp) ->
+                  spawn(fun() -> Parent ! {part1, search1(Bp)} end)
+              end, Bps) ++
+    lists:map(fun(Bp) ->
+                  spawn(fun() -> Parent ! {part2, search2(Bp)} end)
+              end, Bps2),
 
   lists:foldl(
-    fun(_, Acc) ->
+    fun(_, {P1, P2}) ->
         receive
-          N -> N + Acc
+          {part1, Level} -> {P1 + Level, P2};
+          {part2, Level} -> {P1, P2 * Level}
         end
-    end, 0, Pids1);
-solve(2) ->
-  Parent = self(),
-  Bin = input:get(19),
-  {Bps, _} = lists:split(3, lists:reverse(parse(Bin))),
+    end, {0, 1}, Pids).
 
-  Pids1 =
-    lists:map(
-      fun(Bp) ->
-          spawn(fun() ->
-                    Parent ! search(Bp, 32)
-                end)
-      end, Bps),
+search1(Bp) ->
+  search(Bp, 24) * Bp#blueprint.nr.
 
-  lists:foldl(
-    fun(_, Acc) ->
-        receive
-          N -> N * Acc
-        end
-    end, 1, Pids1).
+search2(Bp) ->
+  search(Bp, 32).
 
 search(Bp, Minute) ->
   {G, _} = dfs(Bp, #{}, [], Minute, 0, 0, 0, 0, 1, 0, 0, 0),
@@ -175,8 +168,6 @@ dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
 -ifdef(TEST).
 
 day19_test_() ->
-  [ ?_assertEqual(1382, solve(1))
-  , ?_assertEqual(31740, solve(2))
-  ].
+  ?_assertEqual({1382, 31740}, solve()).
 
 -endif.
