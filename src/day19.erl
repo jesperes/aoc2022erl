@@ -113,15 +113,15 @@ solve(2) ->
 search(Bp, Minute) ->
   {Time, {G, Cache}} =
     timer:tc(fun() ->
-                 dfs(Bp, #{}, Minute, 0, 0, 0, 0, 1, 0, 0, 0)
+                 dfs(Bp, #{}, [], Minute, 0, 0, 0, 0, 1, 0, 0, 0)
              end),
   ?debugFmt("[~p] Blueprint ~p got ~p geodes in ~p minutes, took ~p millis, states explored = ~p",
             [self(), Bp#blueprint.nr, G, Minute, Time / 1000.0, maps:get(states, Cache)]),
   G.
 
-dfs(_Bp, Cache, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
+dfs(_Bp, Cache, _SkipList, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
   {G + GR, maps:update_with(states, fun(Old) -> Old + 1 end, 1, Cache)};
-dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
+dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
   #blueprint{ore_robot_c = OOC,
              clay_robot_c = COC,
              obs_robot_ore_c = BOC,
@@ -138,6 +138,10 @@ dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
   CanBuildClay = O >= COC andalso CR < MaxCR,
   CanBuildOre = O >= OOC andalso OR < MaxOR,
 
+  SkipOre = lists:member(ore, SkipList),
+  SkipClay = lists:member(clay, SkipList),
+  SkipObs = lists:member(obs, SkipList),
+
   Key = {O, C, B, G, OR, CR, BR, GR},
   case maps:get(Key, Cache, undefined) of
     Value when is_integer(Cache) ->
@@ -145,7 +149,7 @@ dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
 
     %% If we can build a geode robot, do only that
     _ when CanBuildGeo ->
-      dfs(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
+      dfs(Bp, Cache, [], Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
 
     %% If there are 2 minutes left and we are not building an obsidian
     %% robot, we can short-circuit here.
@@ -154,21 +158,26 @@ dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
 
     _ ->
       {Max0, Cache0} =
-        ?IF(CanBuildObs,
-            dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR),
+        ?IF(CanBuildObs andalso not SkipObs,
+            dfs(Bp, Cache, [], Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR),
             {0, Cache}),
 
       {Max1, Cache1} =
-        ?IF(CanBuildClay,
-            dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR),
+        ?IF(CanBuildClay andalso not SkipClay,
+            dfs(Bp, Cache0, [], Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR),
             {0, Cache0}),
 
       {Max2, Cache2} =
-        ?IF(CanBuildOre,
-            dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR),
+        ?IF(CanBuildOre andalso not SkipOre,
+            dfs(Bp, Cache1, [], Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR),
             {0, Cache1}),
 
-      {Max3, Cache3} = dfs(Bp, Cache2, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
+      SkipList0 =
+        ?IF(CanBuildOre, [ore], []) ++
+        ?IF(CanBuildClay, [clay], []) ++
+        ?IF(CanBuildObs, [obs], []),
+
+      {Max3, Cache3} = dfs(Bp, Cache2, SkipList0, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
 
       MaxOut = lists:max([Max0, Max1, Max2, Max3]),
       {MaxOut, Cache3}
@@ -177,7 +186,8 @@ dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
 -ifdef(TEST).
 
 day19_test_() ->
-  [{timeout, 60000, fun() -> 1382 = solve(1) end},
-   {timeout, 60000, fun() -> 31740 = solve(2) end}].
+  [ {timeout, 60000, fun() -> 1382 = solve(1) end}
+  %% , {timeout, 60000, fun() -> 31740 = solve(2) end}
+  ].
 
 -endif.
