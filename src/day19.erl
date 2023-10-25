@@ -154,25 +154,24 @@ dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
 
     _ ->
       {Max0, Cache0} =
-        if CanBuildObs ->
-            dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
-           true -> {0, Cache}
-        end,
+        ?IF(CanBuildObs,
+            dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR),
+            {0, Cache}),
 
       {Max1, Cache1} =
-        if CanBuildClay ->
-            dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
-           true -> {0, Cache0}
-        end,
+        ?IF(CanBuildClay,
+            dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR),
+            {0, Cache0}),
 
       {Max2, Cache2} =
-        if CanBuildOre ->
-            dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
-           true -> {0, Cache1}
-        end,
+        ?IF(CanBuildOre,
+            dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR),
+            {0, Cache1}),
 
       {Max3, Cache3} = dfs(Bp, Cache2, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
-      {lists:max([Max0, Max1, Max2, Max3]), Cache3}
+
+      MaxOut = lists:max([Max0, Max1, Max2, Max3]),
+      {MaxOut, Cache3}
   end.
 
 -ifdef(TEST).
