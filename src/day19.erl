@@ -72,7 +72,8 @@ solve() ->
   Parent = self(),
   Bin = input:get(19),
   Bps = lists:reverse(parse(Bin)),
-  {Bps2, _} = lists:split(3, Bps),
+  %% {Bps2, _} = lists:split(3, Bps),
+  Bps2 = [],
 
   AllRuns =
     lists:map(fun(Bp) -> {part1, Bp} end, Bps) ++
@@ -117,8 +118,8 @@ search(Bp, Minute) ->
             [self(), Bp#blueprint.nr, G, Minute, Time / 1000.0]),
   G.
 
-dfs(_Bp, Cache, _Min = 0, _O, _C, _B, G, _OR, _CR, _BR, _GR) ->
-  {G, Cache};
+dfs(_Bp, Cache, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
+  {G + GR, Cache};
 dfs(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
   #blueprint{ore_robot_c = OOC,
              clay_robot_c = COC,
@@ -130,47 +131,48 @@ dfs(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
              max_clay_r = MaxCR,
              max_obs_r = MaxBR} = Bp,
 
-  if B >= GBC andalso O >= GOC ->
-      dfs(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
-     Min == 1 ->
-      %% If there is just one minute left, we can just build one more
-      %% geode with the geode robots we have
-      {G + GR, Cache};
-     true ->
-      %% No need to explore other branches if we have already
-      %% built a geode robot
-      {Max0, Cache0} =
-        if C >= BCC andalso O >= BOC andalso BR < MaxBR ->
-            dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
-           true -> {0, Cache}
-        end,
-
-      if Min == 2 ->
-          %% If there are 2 minutes left and we are not building an
-          %% obsidian robot, we can short-circuit here.
-          {G + GR * 2, Cache0};
+  Key = {O, C, B, G, OR, CR, BR, GR},
+  case maps:get(Key, Cache, undefined) of
+    Value when is_integer(Cache) ->
+      {Value, Cache};
+    _ ->
+      if B >= GBC andalso O >= GOC ->
+          dfs(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
          true ->
-          {Max1, Cache1} =
-            if O >= COC andalso CR < MaxCR ->
-                dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
-               true -> {0, Cache0}
+          %% No need to explore other branches if we have already
+          %% built a geode robot
+          {Max0, Cache0} =
+            if C >= BCC andalso O >= BOC andalso BR < MaxBR ->
+                dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
+               true -> {0, Cache}
             end,
 
-          {Max2, Cache2} =
-            if O >= OOC andalso OR < MaxOR ->
-                dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
-               true -> {0, Cache1}
-            end,
+          if Min == 2 ->
+              %% If there are 2 minutes left and we are not building an
+              %% obsidian robot, we can short-circuit here.
+              {G + GR * 2, Cache0};
+             true ->
+              {Max1, Cache1} =
+                if O >= COC andalso CR < MaxCR ->
+                    dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
+                   true -> {0, Cache0}
+                end,
 
-          {Max3, Cache3} = dfs(Bp, Cache2, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
-          {lists:max([Max0, Max1, Max2, Max3]), Cache3}
+              {Max2, Cache2} =
+                if O >= OOC andalso OR < MaxOR ->
+                    dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
+                   true -> {0, Cache1}
+                end,
+
+              {Max3, Cache3} = dfs(Bp, Cache2, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
+              {lists:max([Max0, Max1, Max2, Max3]), Cache3}
+          end
       end
   end.
 
 -ifdef(TEST).
 
-day19_test() ->
-  ok.
-  %% ok = solve().
+day19_test_() ->
+  {timeout, 6000, fun() -> {1382, 0} = solve() end}.
 
 -endif.
