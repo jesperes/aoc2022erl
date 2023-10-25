@@ -69,58 +69,59 @@ parse(Bin) ->
     end, [], binary:split(Bin, <<"\n">>, [global])).
 
 solve() ->
+  {solve(1), solve(2)}.
+
+solve(1) ->
+  ?debugFmt("Starting part 1", []),
   Parent = self(),
   Bin = input:get(19),
   Bps = lists:reverse(parse(Bin)),
-  %% {Bps2, _} = lists:split(3, Bps),
-  Bps2 = [],
-
-  AllRuns =
-    lists:map(fun(Bp) -> {part1, Bp} end, Bps) ++
-    lists:map(fun(Bp) -> {part2, Bp} end, Bps2),
-
-  Pids =
+  Pids1 =
     lists:map(
-      fun({part1, Bp}) ->
+      fun(Bp) ->
           spawn(fun() ->
-                    Parent ! {part1, search(Bp, 24) * Bp#blueprint.nr}
-                end);
-         ({part2, Bp}) ->
-          spawn(fun() ->
-                    Parent ! {part2, search(Bp, 32)}
+                    Parent ! search(Bp, 24) * Bp#blueprint.nr
                 end)
-      end, AllRuns),
+      end, Bps),
 
   lists:foldl(
-    fun(_, {P1, P2}) ->
+    fun(_, Acc) ->
         receive
-          {part1, N} -> {N + P1, P2};
-          {part2, N} -> {P2, N + P2}
+          N -> N + Acc
         end
-    end, {0, 0}, Pids).
+    end, 0, Pids1);
+solve(2) ->
+  ?debugFmt("Starting part 2", []),
+  Parent = self(),
+  Bin = input:get(19),
+  Bps = lists:reverse(parse(Bin)),
+  Pids1 =
+    lists:map(
+      fun(Bp) ->
+          spawn(fun() ->
+                    Parent ! search(Bp, 32)
+                end)
+      end, Bps),
 
-
-
-solve0() ->
-  Bps = parse(input:get(19)),
-  lists:foreach(fun(#blueprint{nr = 21} = Bp) ->
-                    ?assertEqual(13, search(Bp, 24));
-                   (_) ->
-                    ok
-                end, Bps).
+  lists:foldl(
+    fun(_, Acc) ->
+        receive
+          N -> N * Acc
+        end
+    end, 1, Pids1).
 
 search(Bp, Minute) ->
-  {Time, {G, _}} =
+  {Time, {G, Cache}} =
     timer:tc(fun() ->
                  dfs(Bp, #{}, Minute, 0, 0, 0, 0, 1, 0, 0, 0)
              end),
-  io:format("[~p] Blueprint ~p got ~p geodes in ~p minutes, took ~p millis~n",
-            [self(), Bp#blueprint.nr, G, Minute, Time / 1000.0]),
+  ?debugFmt("[~p] Blueprint ~p got ~p geodes in ~p minutes, took ~p millis, states explored = ~p",
+            [self(), Bp#blueprint.nr, G, Minute, Time / 1000.0, maps:get(states, Cache)]),
   G.
 
 dfs(_Bp, Cache, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
-  {G + GR, Cache};
-dfs(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
+  {G + GR, maps:update_with(states, fun(Old) -> Old + 1 end, 1, Cache)};
+dfs(Bp, CacheIn, Min, O, C, B, G, OR, CR, BR, GR) ->
   #blueprint{ore_robot_c = OOC,
              clay_robot_c = COC,
              obs_robot_ore_c = BOC,
@@ -131,18 +132,24 @@ dfs(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
              max_clay_r = MaxCR,
              max_obs_r = MaxBR} = Bp,
 
+  Cache = maps:update_with(states, fun(Old) -> Old + 1 end, 1, CacheIn),
+  CanBuildGeo = B >= GBC andalso O >= GOC,
+  CanBuildObs = C >= BCC andalso O >= BOC andalso OR < MaxBR,
+  CanBuildClay = O >= COC andalso CR < MaxCR,
+  CanBuildOre = O >= OOC andalso OR < MaxOR,
+
   Key = {O, C, B, G, OR, CR, BR, GR},
   case maps:get(Key, Cache, undefined) of
     Value when is_integer(Cache) ->
       {Value, Cache};
     _ ->
-      if B >= GBC andalso O >= GOC ->
+      if CanBuildGeo ->
           dfs(Bp, Cache, Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
          true ->
           %% No need to explore other branches if we have already
           %% built a geode robot
           {Max0, Cache0} =
-            if C >= BCC andalso O >= BOC andalso BR < MaxBR ->
+            if CanBuildObs ->
                 dfs(Bp, Cache, Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR);
                true -> {0, Cache}
             end,
@@ -153,13 +160,13 @@ dfs(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
               {G + GR * 2, Cache0};
              true ->
               {Max1, Cache1} =
-                if O >= COC andalso CR < MaxCR ->
+                if CanBuildClay ->
                     dfs(Bp, Cache0, Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR);
                    true -> {0, Cache0}
                 end,
 
               {Max2, Cache2} =
-                if O >= OOC andalso OR < MaxOR ->
+                if CanBuildOre ->
                     dfs(Bp, Cache1, Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR);
                    true -> {0, Cache1}
                 end,
@@ -173,6 +180,7 @@ dfs(Bp, Cache, Min, O, C, B, G, OR, CR, BR, GR) ->
 -ifdef(TEST).
 
 day19_test_() ->
-  {timeout, 6000, fun() -> {1382, 0} = solve() end}.
+  [{timeout, 60000, fun() -> 1382 = solve(1) end},
+   {timeout, 60000, fun() -> 31740 = solve(2) end}].
 
 -endif.
