@@ -103,12 +103,12 @@ search2(Bp) ->
   search(Bp, 32).
 
 search(Bp, Minute) ->
-  {G, _} = dfs(Bp, #{}, [], Minute, 0, 0, 0, 0, 1, 0, 0, 0),
+  {G, _Cache} = dfs(Bp, 0, [], Minute, 0, 0, 0, 0, 1, 0, 0, 0),
   G.
 
-dfs(_Bp, Cache, _SkipList, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
-  {G + GR, maps:update_with(states, fun(Old) -> Old + 1 end, 1, Cache)};
-dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
+dfs(_Bp, GlobalMax, _SkipList, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
+  {G + GR, GlobalMax};
+dfs(Bp, GlobalMax, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
   #blueprint{ore_robot_c = OOC,
              clay_robot_c = COC,
              obs_robot_ore_c = BOC,
@@ -119,7 +119,6 @@ dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
              max_clay_r = MaxCR,
              max_obs_r = MaxBR} = Bp,
 
-  Cache = maps:update_with(states, fun(Old) -> Old + 1 end, 1, CacheIn),
   CanBuildGeo = B >= GBC andalso O >= GOC,
   CanBuildObs = C >= BCC andalso O >= BOC andalso OR < MaxBR,
   CanBuildClay = O >= COC andalso CR < MaxCR,
@@ -129,33 +128,35 @@ dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
   SkipClay = lists:member(clay, SkipList),
   SkipObs = lists:member(obs, SkipList),
 
-  Key = {O, C, B, G, OR, CR, BR, GR},
-  case maps:get(Key, Cache, undefined) of
-    Value when is_integer(Cache) ->
-      {Value, Cache};
+  TheoreticalMaxGeo = G + GR * Min + (Min * (Min - 1) div 2),
 
-    %% If we can build a geode robot, do only that
-    _ when CanBuildGeo ->
-      dfs(Bp, Cache, [], Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
+  %% If the theoretical maximal geodes we can get from this point is
+  %% less than the max, this is a dead end.
+  if TheoreticalMaxGeo < GlobalMax ->
+      {0, GlobalMax};
 
-    _ ->
+     %% If we can build a geode robot, do only that
+     CanBuildGeo ->
+      dfs(Bp, GlobalMax, [], Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
+
+     true ->
       %% Build obsidian
-      {Max0, Cache0} =
+      {Max0, GlobalMax0} =
         ?IF(CanBuildObs andalso not SkipObs,
-            dfs(Bp, Cache, [], Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR),
-            {0, Cache}),
+            dfs(Bp, GlobalMax, [], Min - 1, O + OR - BOC, C + CR - BCC, B + BR, G + GR, OR, CR, BR + 1, GR),
+            {0, GlobalMax}),
 
       %% Build clay
-      {Max1, Cache1} =
+      {Max1, GlobalMax1} =
         ?IF(CanBuildClay andalso not SkipClay,
-            dfs(Bp, Cache0, [], Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR),
-            {0, Cache0}),
+            dfs(Bp, GlobalMax0, [], Min - 1, O + OR - COC, C + CR, B + BR, G + GR, OR, CR + 1, BR, GR),
+            {0, GlobalMax0}),
 
       %% Build ore
-      {Max2, Cache2} =
+      {Max2, GlobalMax2} =
         ?IF(CanBuildOre andalso not SkipOre,
-            dfs(Bp, Cache1, [], Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR),
-            {0, Cache1}),
+            dfs(Bp, GlobalMax1, [], Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR),
+            {0, GlobalMax1}),
 
       %% Build nothing, just let robots mine new resources. In this
       %% case pass down a `SkipList' to avoid building resources next
@@ -166,11 +167,11 @@ dfs(Bp, CacheIn, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
         ?IF(CanBuildOre, [ore], []) ++
         ?IF(CanBuildClay, [clay], []) ++
         ?IF(CanBuildObs, [obs], []),
-      {Max3, Cache3} = dfs(Bp, Cache2, SkipList0, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
+      {Max3, GlobalMax3} = dfs(Bp, GlobalMax2, SkipList0, Min - 1, O + OR, C + CR, B + BR, G + GR, OR, CR, BR, GR),
 
       %% Collect the maximum values found
       MaxOut = lists:max([Max0, Max1, Max2, Max3]),
-      {MaxOut, Cache3}
+      {MaxOut, ?IF(MaxOut > GlobalMax3, MaxOut, GlobalMax3)}
   end.
 
 -ifdef(TEST).

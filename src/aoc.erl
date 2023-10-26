@@ -46,17 +46,9 @@ tabulate(Runs) ->
   end.
 
 -spec get_avg(Values :: [number()]) -> {integer(), number(), number(), number()}.
-get_avg(Values) ->
-  %% Remove max/min
-  Min = lists:min(Values),
-  Max = lists:max(Values),
-  V1 = if length(Values) == 1 ->
-           Values;
-          true ->
-           lists:delete(Max, lists:delete(Min, Values))
-       end,
+get_avg(V1) ->
   Avg = trunc(lists:sum(V1) / length(V1)),
-  {length(Values), Avg, lists:min(V1), lists:max(V1)}.
+  {length(V1), Avg, lists:min(V1), lists:max(V1)}.
 
 -spec timing(Module :: module()) -> {module(), [number()]}.
 timing(Module) ->
