@@ -29,7 +29,6 @@
 %% MaxCR: Maximum clay cost of any robot
 %% MaxBR: Maximum obsidian cost of any robot
 
-
 %% These fields must come in the same order as they appear in the
 %% blueprint, or the parser will not work.
 -record(blueprint, { nr :: integer()
@@ -106,6 +105,20 @@ search(Bp, Minute) ->
   {G, _Cache} = dfs(Bp, 0, [], Minute, 0, 0, 0, 0, 1, 0, 0, 0),
   G.
 
+%%
+%% Depth-first search. The key to make the runtime of this reasonable is to
+%% prune the search space. The key optimizations are
+%%
+%% 1. If we can build a geode robot, do that, and do not explore any
+%% other choices.
+%%
+%% 2. If we at minute N decide to not build anything, when we get to
+%% minute N + 1, only build robots that we were unable to build in
+%% minute N.
+%%
+%% 3. Keep track of the global max found so far, and prune branches which
+%% cannot theoretically yield a better max.
+%%
 dfs(_Bp, GlobalMax, _SkipList, _Min = 1, _O, _C, _B, G, _OR, _CR, _BR, GR) ->
   {G + GR, GlobalMax};
 dfs(Bp, GlobalMax, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
@@ -124,10 +137,6 @@ dfs(Bp, GlobalMax, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
   CanBuildClay = O >= COC andalso CR < MaxCR,
   CanBuildOre = O >= OOC andalso OR < MaxOR,
 
-  SkipOre = lists:member(ore, SkipList),
-  SkipClay = lists:member(clay, SkipList),
-  SkipObs = lists:member(obs, SkipList),
-
   TheoreticalMaxGeo = G + GR * Min + (Min * (Min - 1) div 2),
 
   %% If the theoretical maximal geodes we can get from this point is
@@ -140,6 +149,12 @@ dfs(Bp, GlobalMax, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
       dfs(Bp, GlobalMax, [], Min - 1, O + OR - GOC, C + CR, B + BR - GBC, G + GR, OR, CR, BR, GR + 1);
 
      true ->
+      %% Check if we should skip any robots due to not building them
+      %% in the previous minute.
+      SkipOre = lists:member(ore, SkipList),
+      SkipClay = lists:member(clay, SkipList),
+      SkipObs = lists:member(obs, SkipList),
+
       %% Build obsidian
       {Max0, GlobalMax0} =
         ?IF(CanBuildObs andalso not SkipObs,
@@ -158,11 +173,9 @@ dfs(Bp, GlobalMax, SkipList, Min, O, C, B, G, OR, CR, BR, GR) ->
             dfs(Bp, GlobalMax1, [], Min - 1, O + OR - OOC, C + CR, B + BR, G + GR, OR + 1, CR, BR, GR),
             {0, GlobalMax1}),
 
-      %% Build nothing, just let robots mine new resources. In this
-      %% case pass down a `SkipList' to avoid building resources next
-      %% turn that we could've build this time -- if we could have
-      %% built it this time, there is no point in waiting, just to
-      %% build that same resource next time.
+      %% Build nothing, just let robots mine new resources. Pass along
+      %% the set of robots we built so that we can avoid building them
+      %% the next minute (since that would be useless).
       SkipList0 =
         ?IF(CanBuildOre, [ore], []) ++
         ?IF(CanBuildClay, [clay], []) ++
