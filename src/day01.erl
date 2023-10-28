@@ -4,7 +4,6 @@
         , solve_large/0
         ]).
 
--compile({parse_transform, ct_expand}).
 -include_lib("eunit/include/eunit.hrl").
 
 solve_large() ->
