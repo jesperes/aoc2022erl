@@ -14,29 +14,32 @@ solve() ->
           [binary_to_integer(Bin)|Acc]
       end, [], binary:split(input:get(20), <<"\n">>, [global])),
 
+  %% Part 1
   {Queue, List} = make_queue(Numbers),
   Queue1 = mix(Queue, List),
   P1 = sum3(Queue1),
 
+  %% Part 2
   Numbers2 = lists:map(fun(N) -> N * ?ENCRYPTION_KEY end, Numbers),
   {Queue2, List2} = make_queue(Numbers2),
-  Queue3 = lists:foldl(fun(_N, Q) ->
-                           %% io:format(standard_error, "P2 round ~p~n", [N]),
-                           mix(Q, List2)
-                       end, Queue2, lists:seq(1, 10)),
+  Queue3 = lists:foldl(
+             fun(_, Q) ->
+                 mix(Q, List2)
+             end, Queue2, lists:seq(1, 10)),
   P2 = sum3(Queue3),
   {P1, P2}.
 
 
 sum3(Queue) ->
   Q0 = rotate_number_to_front(0, Queue),
-  Q1 = rotate(-1000, Q0),
-  {_, A} = queue:head(Q1),
-  Q2 = rotate(-1000, Q1),
-  {_, B} = queue:head(Q2),
-  Q3 = rotate(-1000, Q2),
-  {_, C} = queue:head(Q3),
-  A + B + C.
+  List = queue:to_list(Q0),
+  sum3(0, List, []).
+
+sum3(_, [], Acc) -> Acc;
+sum3(N, [A|List], Acc) when (N == 1000) orelse (N == 2000) orelse (N == 3000) ->
+  sum3(N + 1, List, [A|Acc]);
+sum3(N, [_|List], Acc) ->
+  sum3(N + 1, List, Acc).
 
 make_queue(Numbers) ->
   Len = length(Numbers),
@@ -47,11 +50,9 @@ mix(Queue, List) ->
   Len = length(List),
   lists:foldl(
     fun({Idx, Num}, QueueIn) ->
-        ?assertEqual(Len, queue:len(QueueIn)),
         Q1 = rotate_index_to_front(Idx, QueueIn),
         {{value, Head}, Q2} = queue:out(Q1),
-        Len0 = Len - 1, %% Queue is 1 element shorter right now
-        Shift = (Num + Len0 * 3) rem Len0, %% * 3 to avoid issues with rem and negative numbers
+        Shift = (Num + (Len - 1)) rem (Len - 1),
         Q3 = rotate(-Shift, Q2),
         Q4 = queue:in(Head, Q3),
         Q4
