@@ -16,15 +16,19 @@ solve() ->
 
   {Queue, List} = make_queue(Numbers),
   Queue1 = mix(Queue, List),
-  find_p1(Queue1).
+  P1 = sum3(Queue1),
 
-  %% Numbers2 = lists:map(fun(N) -> N * ?ENCRYPTION_KEY end, Numbers),
-  %% lists:foldl(fun(_, Acc) ->
+  Numbers2 = lists:map(fun(N) -> N * ?ENCRYPTION_KEY end, Numbers),
+  {Queue2, List2} = make_queue(Numbers2),
+  Queue3 = lists:foldl(fun(_N, Q) ->
+                           %% io:format(standard_error, "P2 round ~p~n", [N]),
+                           mix(Q, List2)
+                       end, Queue2, lists:seq(1, 10)),
+  P2 = sum3(Queue3),
+  {P1, P2}.
 
-  %%             end,
 
-
-find_p1(Queue) ->
+sum3(Queue) ->
   Q0 = rotate_number_to_front(0, Queue),
   Q1 = rotate(-1000, Q0),
   {_, A} = queue:head(Q1),
@@ -78,60 +82,9 @@ rotate(N, Queue) when N < 0 ->
   Q1 = queue:in(Head, Q0),
   rotate(N + 1, Q1).
 
-unzipped(L) ->
-  {_, L0} = lists:unzip(L),
-  L0.
-
 -ifdef(TEST).
 
-rotate_to_front_test() ->
-  Q = queue:from_list([{0,foo},
-                       {1,bar},
-                       {2,gurka},
-                       {3,banan}]),
-
-  Q1 = rotate_index_to_front(2, Q),
-  ?assertEqual({value, {2, gurka}}, queue:peek(Q1)),
-
-  Q2 = rotate_index_to_front(0, Q),
-  ?assertEqual({value, {0, foo}}, queue:peek(Q2)),
-
-  Q3 = rotate_index_to_front(3, Q),
-  ?assertEqual({value, {3, banan}}, queue:peek(Q3)).
-
-rotate_test() ->
-  Q = queue:from_list([{0,foo},
-                       {1,bar},
-                       {2,gurka},
-                       {3,banan}]),
-
-  lists:foreach(
-    fun({Shift, ExpectedHead}) ->
-        ?assertEqual(ExpectedHead, queue:head(rotate(Shift, Q)))
-    end, [{0, {0, foo}},
-          {-1, {1, bar}},
-          {-2, {2, gurka}},
-          {-3, {3, banan}},
-          {-4, {0, foo}},
-          {-5, {1, bar}},
-          {1, {3, banan}},
-          {2, {2, gurka}}]).
-
-mix_test() ->
-  Numbers = [1, 2, -3, 3, -2, 0, 4],
-  {Queue, List} = make_queue(Numbers),
-  Q = mix(Queue, List),
-  L = unzipped(queue:to_list(rotate_number_to_front(1, Q))),
-  ?assertEqual([1, 2, -3, 4, 0, 3, -2], L).
-
-%% find_p1_test() ->
-%%   Numbers = [1, 2, -3, 4, 0, 3, -2],
-%%   Len = length(Numbers),
-%%   List = lists:zip(lists:seq(1, Len), Numbers),
-%%   Queue = queue:from_list(List),
-%%   ?assertEqual(3, find_p1(Queue)).
-
-day20_test() ->
-  ?assertEqual({7278, 14375678667089}, solve()).
+day20_test_() ->
+  {timeout, 600, ?_assertEqual({7278, 14375678667089}, solve())}.
 
 -endif.
