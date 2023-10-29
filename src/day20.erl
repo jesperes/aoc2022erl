@@ -17,7 +17,16 @@ solve() ->
   {mix(Numbers, 1, 1),
    mix(Numbers, ?ENCRYPTION_KEY, 10)}.
 
-sum3(Ring, Zero) ->
+mix(Numbers, Multiplier, Rounds) ->
+  Len = length(Numbers),
+  List = lists:zip(lists:seq(0, Len - 1),
+                   lists:map(fun(N) -> N * Multiplier end, Numbers)),
+  do_mix_rounds(ring:from_list(List), List, Rounds).
+
+do_mix_rounds(Ring, List, 0) ->
+  {value, Zero} = lists:search(fun({_, 0}) -> true;
+                                  (_) -> false
+                               end, List),
   R1 = ring:move_element_to_head(Zero, Ring),
   {Sum, _} =
     lists:foldl(fun(_, {Sum, R}) ->
@@ -25,20 +34,7 @@ sum3(Ring, Zero) ->
                     {_, A} = ring:peek(R2),
                     {A + Sum, R2}
                 end, {0, R1}, [1, 2, 3]),
-  Sum.
-
-mix(Numbers, Multiplier, Rounds) ->
-  Len = length(Numbers),
-  List = lists:zip(lists:seq(0, Len - 1),
-                   lists:map(fun(N) -> N * Multiplier end, Numbers)),
-  Ring = ring:from_list(List),
-  do_mix_rounds(Ring, List, Rounds).
-
-do_mix_rounds(Ring, List, 0) ->
-  {value, Zero} = lists:search(fun({_, 0}) -> true;
-                                  (_) -> false
-                               end, List),
-  sum3(Ring, Zero);
+  Sum;
 do_mix_rounds(Ring, List, N) ->
   Len = ring:length(Ring),
   RingOut =
