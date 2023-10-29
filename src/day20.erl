@@ -27,9 +27,7 @@ solve() ->
    mix_many(Numbers, ?ENCRYPTION_KEY, 10)}.
 
 mix_many(Numbers, Multiplier, Rounds) ->
-  Len = length(Numbers),
-  List = lists:zip(lists:seq(0, Len - 1),
-                   lists:map(fun(N) -> N * Multiplier end, Numbers)),
+  List = lists:enumerate(0, lists:map(fun(N) -> N * Multiplier end, Numbers)),
   InitialRing = << <<Idx:?INDEX_BITS, Num:?NUM_BITS/signed>> || {Idx, Num} <- List >>,
   Order = InitialRing,
   RingOut =
