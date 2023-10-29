@@ -1,7 +1,6 @@
 -module(ring).
 
--export([new/0,
-         from_list/1,
+-export([from_list/1,
          to_list/1,
          shift/2,
          insert/2,
@@ -21,10 +20,6 @@
 -opaque ring() :: #ring{}.
 
 -export_type([ring/0]).
-
--spec new() -> ring().
-new() ->
-  from_list([]).
 
 -spec from_list(List :: list()) -> ring().
 from_list(List) ->
