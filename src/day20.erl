@@ -44,34 +44,13 @@ do_mix_rounds(Ring, List, N) ->
   RingOut =
     lists:foldl(
       fun({_, Num} = Elem, RingIn) ->
-          Ring0 = ring:move_element_to_head(Elem, RingIn),
-          {_, Ring1} = ring:remove(Ring0),
+          {_, Ring1} = ring:remove(ring:move_element_to_head(Elem, RingIn)),
           Shift = (Num + (Len - 1)) rem (Len - 1),
-          Ring2 = ring:shift(-Shift, Ring1),
-          Ring3 = ring:insert(Elem, Ring2),
-          Ring3
+          ring:insert(Elem, ring:shift(-Shift, Ring1))
       end, Ring, List),
   do_mix_rounds(RingOut, List, N - 1).
 
 -ifdef(TEST).
-
-%% mix_test() ->
-%%   Numbers = [1, 2, -3, 3, -2, 0, 4],
-%%   {Ring, List} = make_ring(Numbers),
-%%   Ring1 = mix(Ring, List),
-%%   Ring2 = ring:move_element_to_head({0, 1}, Ring1),
-%%   {_, L} = lists:unzip(ring:to_list(Ring2)),
-%%   ?assertEqual([1, 2, -3, 4, 0, 3, -2], L).
-
-%% sum3_test() ->
-%%   L = [1, 2, -3, 4, 0, 3, -2],
-%%   {Ring, List} = make_ring(L),
-%%   {value, Zero} = lists:search(fun({_, 0}) -> true;
-%%                                   (_) -> false
-%%                                end, List),
-%%   ?debugVal(Zero),
-%%   ?debugVal(Ring),
-%%   ?assertEqual(3, sum3(Ring, Zero)).
 
 day20_test_() ->
   {timeout, 600, ?_assertEqual({7278, 14375678667089}, solve())}.
