@@ -68,6 +68,9 @@ monkey_yell(Monkey, Map) ->
 
 solve_for_humn(Monkey, Map) ->
   Expr = maps:get(Monkey, Map),
+  solve_for_humn0(Monkey, Expr, Map).
+
+solve_for_humn0(Monkey, Expr, Map) ->
   %%?debugVal({Monkey, Expr}),
   case Expr of
     Num when is_integer(Num) ->
@@ -75,8 +78,8 @@ solve_for_humn(Monkey, Map) ->
     {expr, L, '+', R} when Monkey =:= root ->
       L0 = solve_for_humn(L, Map),
       R0 = solve_for_humn(R, Map),
-      ?debugVal(L0),
-      ?debugVal(R0),
+      %%?debugVal(L0),
+      %%?debugVal(R0),
       case {L0, R0} of
         {{humn, _, Op, R2}, R1} when is_integer(R1) andalso is_integer(R2) ->
           trunc(erlang:Op(R1, R2));
@@ -94,9 +97,18 @@ solve_for_humn(Monkey, Map) ->
     {expr, humn, '-', R} -> {humn, Monkey, '-', solve_for_humn(R, Map)};
 
     {expr, Left, Op, Right} when is_integer(Left) andalso is_integer(Right)->
-      trunc(erlang:Op(Left, Right))
+      trunc(erlang:Op(Left, Right));
 
+    {expr, Left, Op, Right} = X ->
+      %%?debugVal(X),
+      %%L0 = solve_for_humn(Left, Map),
+      %%R0 = solve_for_humn(Right, Map),
+      %%?debugVal(L0),
+      %%?debugVal(R0),
+      %%solve_for_humn0(Monkey, {expr, L0, Op, R0}, Map)
+      throw(this_part_does_not_work)
   end.
+
 
 %% Tests
 %% =============================================================================
@@ -172,6 +184,20 @@ ex6_test() ->
           "c: 9\n"
           "b: 3\n"
           "humn: 5\n"
+          >>,
+
+  ?assertEqual(6, solve(Bin)).
+
+ex7_test() ->
+  Bin = <<"root: a + b\n"
+          "a: a1 + a2\n"
+          "b: b1 + b2\n"
+          "a1: 1\n"
+          "a2: humn + a3\n"
+          "a3: 42\n"
+          "b1: 5\n"
+          "b2: 6\n",
+          "humn: 0\n"
           >>,
 
   ?assertEqual(6, solve(Bin)).
