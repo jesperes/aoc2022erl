@@ -44,15 +44,11 @@ mix(<<Elem:?ELEM_BYTES/binary, Rest/binary>>, Ring) ->
 mix1(<<_:?INDEX_BITS, Num:?NUM_BITS/signed>> = Elem, Ring) ->
   [A, B] = binary:split(Ring, Elem),
   AB = <<A/binary, B/binary>>,
-  Idx = byte_size(A) div ?ELEM_BYTES,
   Len = byte_size(AB) div ?ELEM_BYTES,
-  InsertAt = case (Idx + Num) rem Len of
-               X when X < 0 -> Len + X;
-               X -> X
-             end,
-  InsertAtBytes = InsertAt * ?ELEM_BYTES,
-  A0 = binary:part(AB, 0, InsertAtBytes),
-  B0 = binary:part(AB, InsertAtBytes, byte_size(AB) - InsertAtBytes),
+  Pos = (byte_size(A) div ?ELEM_BYTES + Num) rem Len,
+  InsertAt = ?IF(Pos < 0, Len + Pos, Pos) * ?ELEM_BYTES,
+  A0 = binary:part(AB, 0, InsertAt),
+  B0 = binary:part(AB, InsertAt, byte_size(AB) - InsertAt),
   <<A0/binary, Elem/binary, B0/binary>>.
 
 find_zero(<<Idx:?INDEX_BITS, 0:?NUM_BITS/signed, _/binary>>) ->
