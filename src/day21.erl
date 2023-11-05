@@ -13,29 +13,8 @@
 -define(atom(X), binary_to_atom(X)).
 -define(match(Subject, RE), re:run(Subject, RE, [{capture, all_but_first, binary}])).
 
-test_input() ->
-  <<"root: pppw + sjmn
-dbpl: 5
-cczh: sllz + lgvd
-zczc: 2
-ptdq: humn - dvpt
-dvpt: 3
-lfqf: 4
-humn: 5
-ljgn: 2
-sjmn: drzm * dbpl
-sllz: 4
-pppw: cczh / lfqf
-lgvd: ljgn * ptdq
-drzm: hmdt - zczc
-hmdt: 32">>.
-
 solve() ->
   Bin = input:get(21),
-  %% Bin = test_input(),
-  solve(Bin).
-
-solve(Bin) ->
   Lines = binary:split(Bin, <<"\n">>, [global]),
 
   Monkeys =
@@ -44,6 +23,8 @@ solve(Bin) ->
          (Line, Acc) ->
           {match, [Monkey, Expr]} = ?match(Line, "(.*): (.*)"),
           case ?match(Expr, "(.*) (.*) (.*)") of
+            {match, [Left, <<"/">>, Right]} ->
+              maps:put(?atom(Monkey), {expr, ?atom(Left), 'div', ?atom(Right)}, Acc);
             {match, [Left, Op, Right]} ->
               maps:put(?atom(Monkey), {expr, ?atom(Left), ?atom(Op), ?atom(Right)}, Acc);
             nomatch ->
@@ -55,10 +36,9 @@ solve(Bin) ->
    solve_for_humn(root, Monkeys)}.
 
 monkey_yell(Monkey, Map) ->
-  %% ?debugVal(Monkey),
   case maps:get(Monkey, Map) of
     {expr, Left, Op, Right} ->
-      trunc(erlang:Op(monkey_yell(Left, Map), monkey_yell(Right, Map)));
+      erlang:Op(monkey_yell(Left, Map), monkey_yell(Right, Map));
     Num ->
       Num
   end.
@@ -66,37 +46,23 @@ monkey_yell(Monkey, Map) ->
 solve_for_humn(humn, _Map) ->
   humn;
 solve_for_humn(Monkey, Map) ->
-  Expr = maps:get(Monkey, Map),
-  case Expr of
-    Num when is_integer(Num) ->
-      Num;
-
+  case maps:get(Monkey, Map) of
+    Num when is_integer(Num) -> Num;
     {expr, L, '+', R} when Monkey =:= root ->
-      L0 = solve_for_humn(L, Map),
-      R0 = solve_for_humn(R, Map),
-      EL0 = eval(L0),
-      ER0 = eval(R0),
-      reduce(EL0, ER0);
-
+      reduce(eval(solve_for_humn(L, Map)),
+             eval(solve_for_humn(R, Map)));
     {expr, Left, Op, Right} when is_integer(Left) andalso is_integer(Right) ->
-      trunc(erlang:Op(Left, Right));
-
+      erlang:Op(Left, Right);
     {expr, Left, Op, Right} ->
-      L0 = solve_for_humn(Left, Map),
-      R0 = solve_for_humn(Right, Map),
-      {expr, L0, Op, R0}
+      {expr, solve_for_humn(Left, Map), Op, solve_for_humn(Right, Map)}
   end.
 
-eval(Num) when is_integer(Num) ->
-  Num;
-eval(humn) ->
-  humn;
+eval(Num) when is_integer(Num) -> Num;
+eval(humn) -> humn;
 eval({expr, L, Op, R}) ->
-  L0 = eval(L),
-  R0 = eval(R),
-  case {L0, R0} of
+  case {eval(L), eval(R)} of
     {EL, ER} when is_integer(EL) andalso is_integer(ER) ->
-      trunc(erlang:Op(EL, ER));
+      erlang:Op(EL, ER);
     {EL, ER} ->
       {expr, EL, Op, ER}
   end.
@@ -109,8 +75,8 @@ reduce(Num, {expr, L, '-', R}) when is_integer(L) -> reduce(L - Num, R);
 reduce(Num, {expr, L, '-', R}) when is_integer(R) -> reduce(Num + R, L);
 reduce(Num, {expr, L, '*', R}) when is_integer(L) -> reduce(Num div L, R);
 reduce(Num, {expr, L, '*', R}) when is_integer(R) -> reduce(Num div R, L);
-reduce(Num, {expr, L, '/', R}) when is_integer(L) -> reduce(Num * L, R);
-reduce(Num, {expr, L, '/', R}) when is_integer(R) -> reduce(Num * R, L).
+reduce(Num, {expr, L, 'div', R}) when is_integer(L) -> reduce(Num * L, R);
+reduce(Num, {expr, L, 'div', R}) when is_integer(R) -> reduce(Num * R, L).
 
 
 %% Tests
