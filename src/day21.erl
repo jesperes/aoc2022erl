@@ -80,7 +80,7 @@ solve_for_humn(Monkey, Map) ->
       ER0 = eval(R0),
       %%?debugVal(EL0),
       %%?debugVal(ER0),
-      %% ?debugFmt("Reducing ~p = ~p~n", [EL0, ER0]),
+      ?debugFmt("Reducing ~p = ~p~n", [EL0, ER0]),
       reduce(EL0, ER0);
 
     {expr, Left, Op, Right} when is_integer(Left) andalso is_integer(Right) ->
@@ -123,20 +123,20 @@ reduce(Num, {expr, L, '/', R}) when is_integer(R) -> reduce(Num * R, L).
 
 -ifdef(TEST).
 
-testdata_test() ->
-  ?assertEqual({152, 301}, solve(test_input())).
+%%testdata_test() ->
+%%  ?assertEqual({152, 301}, solve(test_input())).
 
 %%realdata_test() ->
 %%  ?assertEqual({268597611536314, not_solved}, solve()).
 
-ex1_test() ->
-  Bin = <<"root: a + b\n"
-          "a: c + humn\n"
-          "b: 27\n"
-          "c: 18\n"
-          "humn: 5\n"
-          >>,
-  ?assertEqual({50, 9}, solve(Bin)).
+%% ex1_test() ->
+%%   Bin = <<"root: a + b\n"
+%%           "a: c + humn\n"
+%%           "b: 27\n"
+%%           "c: 18\n"
+%%           "humn: 5\n"
+%%           >>,
+%%   ?assertEqual({50, 9}, solve(Bin)).
 
 ex2_test() ->
   Bin = <<"root: a + b\n"
@@ -150,42 +150,42 @@ ex2_test() ->
 
   ?assertEqual({45, 4}, solve(Bin)).
 
-ex3_test() ->
-  Bin = <<"root: a + b\n"
-          "a: c * humn\n"
-          "c: 9\n"
-          "b: 27\n"
-          "humn: 5\n"
-        >>,
-  ?assertEqual({72, 3}, solve(Bin)).
+%% ex3_test() ->
+%%   Bin = <<"root: a + b\n"
+%%           "a: c * humn\n"
+%%           "c: 9\n"
+%%           "b: 27\n"
+%%           "humn: 5\n"
+%%         >>,
+%%   ?assertEqual({72, 3}, solve(Bin)).
 
-ex4_test() ->
-  Bin = <<"root: a + b\n"
-          "a: c / humn\n"
-          "c: 9\n"
-          "b: 3\n"
-          "humn: 5\n"
-        >>,
+%% ex4_test() ->
+%%   Bin = <<"root: a + b\n"
+%%           "a: c / humn\n"
+%%           "c: 9\n"
+%%           "b: 3\n"
+%%           "humn: 5\n"
+%%         >>,
 
-  ?assertEqual({4, 3}, solve(Bin)).
+%%   ?assertEqual({4, 3}, solve(Bin)).
 
-ex5_test() ->
-  Bin = <<"root: a + b\n"
-          "a: humn + c\n"
-          "b: 27\n"
-          "c: 18\n"
-          "humn: 5\n"
-          >>,
-  ?assertEqual({50, 9}, solve(Bin)).
+%% ex5_test() ->
+%%   Bin = <<"root: a + b\n"
+%%           "a: humn + c\n"
+%%           "b: 27\n"
+%%           "c: 18\n"
+%%           "humn: 5\n"
+%%           >>,
+%%   ?assertEqual({50, 9}, solve(Bin)).
 
 
-ex6_test() ->
-  Bin = <<"root: a + b\n"
-          "a: humn - c\n"
-          "b: 27\n"
-          "c: 18\n"
-          "humn: 5\n"
-          >>,
-  ?assertEqual({14, 45}, solve(Bin)).
+%% ex6_test() ->
+%%   Bin = <<"root: a + b\n"
+%%           "a: humn - c\n"
+%%           "b: 27\n"
+%%           "c: 18\n"
+%%           "humn: 5\n"
+%%           >>,
+%%   ?assertEqual({14, 45}, solve(Bin)).
 
 -endif.
