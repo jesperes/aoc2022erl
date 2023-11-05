@@ -31,8 +31,8 @@ drzm: hmdt - zczc
 hmdt: 32">>.
 
 solve() ->
-  %% Bin = input:get(21),
-  Bin = test_input(),
+  Bin = input:get(21),
+  %% Bin = test_input(),
   solve(Bin).
 
 solve(Bin) ->
@@ -51,11 +51,11 @@ solve(Bin) ->
           end
       end, #{}, Lines),
 
-  %% {monkey_yell(root, Monkeys),
-  solve_for_humn(root, Monkeys).
+  {monkey_yell(root, Monkeys),
+   solve_for_humn(root, Monkeys)}.
 
 monkey_yell(Monkey, Map) ->
-  ?debugVal(Monkey),
+  %% ?debugVal(Monkey),
   case maps:get(Monkey, Map) of
     {expr, Left, Op, Right} ->
       trunc(erlang:Op(monkey_yell(Left, Map), monkey_yell(Right, Map)));
@@ -63,51 +63,59 @@ monkey_yell(Monkey, Map) ->
       Num
   end.
 
-
-%% monkey_yell2 -> {expr, humn, '==', 42}} | {expr, Num}
-
+solve_for_humn(humn, _Map) ->
+  humn;
 solve_for_humn(Monkey, Map) ->
   Expr = maps:get(Monkey, Map),
-  solve_for_humn0(Monkey, Expr, Map).
-
-solve_for_humn0(Monkey, Expr, Map) ->
-  %%?debugVal({Monkey, Expr}),
+  %%?debugVal(Monkey),
+  %%?debugVal(Expr),
   case Expr of
     Num when is_integer(Num) ->
       Num;
+
     {expr, L, '+', R} when Monkey =:= root ->
       L0 = solve_for_humn(L, Map),
       R0 = solve_for_humn(R, Map),
-      %%?debugVal(L0),
-      %%?debugVal(R0),
-      case {L0, R0} of
-        {{humn, _, Op, R2}, R1} when is_integer(R1) andalso is_integer(R2) ->
-          trunc(erlang:Op(R1, R2));
-        {{humn, R2, Op, _}, R1} when is_integer(R1) andalso is_integer(R2) ->
-          trunc(erlang:Op(R2, R1))
-      end;
+      EL0 = eval(L0),
+      ER0 = eval(R0),
+      %%?debugVal(EL0),
+      %%?debugVal(ER0),
+      %% ?debugFmt("Reducing ~p = ~p~n", [EL0, ER0]),
+      reduce(EL0, ER0);
 
-    {expr, L, '+', humn} -> {humn, Monkey, '-', solve_for_humn(L, Map)};
-    {expr, humn, '+', R} -> {humn, Monkey, '-', solve_for_humn(R, Map)};
-    {expr, L, '*', humn} -> {humn, Monkey, 'div', solve_for_humn(L, Map)};
-    {expr, humn, '*', R} -> {humn, Monkey, 'div', solve_for_humn(R, Map)};
-    {expr, L, '/', humn} -> {humn, solve_for_humn(L, Map), '/', Monkey};
-    {expr, humn, '/', R} -> {humn, Monkey, '*', solve_for_humn(R, Map)};
-    {expr, L, '-', humn} -> {humn, solve_for_humn(L, Map), '-', Monkey};
-    {expr, humn, '-', R} -> {humn, Monkey, '-', solve_for_humn(R, Map)};
-
-    {expr, Left, Op, Right} when is_integer(Left) andalso is_integer(Right)->
+    {expr, Left, Op, Right} when is_integer(Left) andalso is_integer(Right) ->
       trunc(erlang:Op(Left, Right));
 
-    {expr, Left, Op, Right} = X ->
-      %%?debugVal(X),
-      %%L0 = solve_for_humn(Left, Map),
-      %%R0 = solve_for_humn(Right, Map),
-      %%?debugVal(L0),
-      %%?debugVal(R0),
-      %%solve_for_humn0(Monkey, {expr, L0, Op, R0}, Map)
-      throw(this_part_does_not_work)
+    {expr, Left, Op, Right} ->
+      L0 = solve_for_humn(Left, Map),
+      R0 = solve_for_humn(Right, Map),
+      {expr, L0, Op, R0}
   end.
+
+eval(Num) when is_integer(Num) ->
+  Num;
+eval(humn) ->
+  humn;
+eval({expr, L, Op, R}) ->
+  L0 = eval(L),
+  R0 = eval(R),
+  case {L0, R0} of
+    {EL, ER} when is_integer(EL) andalso is_integer(ER) ->
+      trunc(erlang:Op(EL, ER));
+    {EL, ER} ->
+      {expr, EL, Op, ER}
+  end.
+
+reduce(L, R) when is_integer(R) andalso is_tuple(L) -> reduce(R, L);
+reduce(Num, humn) -> Num;
+reduce(Num, {expr, L, '+', R}) when is_integer(L) -> reduce(Num - L, R);
+reduce(Num, {expr, L, '+', R}) when is_integer(R) -> reduce(Num - R, L);
+reduce(Num, {expr, L, '-', R}) when is_integer(L) -> reduce(Num + L, R);
+reduce(Num, {expr, L, '-', R}) when is_integer(R) -> reduce(Num + R, L);
+reduce(Num, {expr, L, '*', R}) when is_integer(L) -> reduce(Num div L, R);
+reduce(Num, {expr, L, '*', R}) when is_integer(R) -> reduce(Num div R, L);
+reduce(Num, {expr, L, '/', R}) when is_integer(L) -> reduce(Num * L, R);
+reduce(Num, {expr, L, '/', R}) when is_integer(R) -> reduce(Num * R, L).
 
 
 %% Tests
@@ -115,91 +123,69 @@ solve_for_humn0(Monkey, Expr, Map) ->
 
 -ifdef(TEST).
 
-%% ex1_test_() ->
-%%   [ ?_assertEqual(5, solve_for_humn(10, {humn, '*', 2}, #{})),
-%%     ?_assertEqual(20, solve_for_humn(10, {humn, '/', 2}, #{})),
-%%     ?_assertEqual(8, solve_for_humn(10, {humn, '+', 2}, #{})),
-%%     ?_assertEqual(12, solve_for_humn(10, {humn, '-', 2}, #{})),
-%%     ?_assertEqual(5, solve_for_humn(10, {2, '*', humn}, #{})),
-%%     ?_assertEqual(2, solve_for_humn(10, {20, '/', humn}, #{})),
-%%     ?_assertEqual(8, solve_for_humn(10, {2, '+', humn}, #{})),
-%%     ?_assertEqual(12, solve_for_humn(10, {2, '-', humn}, #{}))
-%%   ].
+testdata_test() ->
+  ?assertEqual({152, 301}, solve(test_input())).
 
-%%solve_test() ->
+%%realdata_test() ->
 %%  ?assertEqual({268597611536314, not_solved}, solve()).
 
 ex1_test() ->
   Bin = <<"root: a + b\n"
           "a: c + humn\n"
-          "c: 9\n"
           "b: 27\n"
+          "c: 18\n"
           "humn: 5\n"
           >>,
-  ?assertEqual(18, solve(Bin)).
+  ?assertEqual({50, 9}, solve(Bin)).
 
 ex2_test() ->
   Bin = <<"root: a + b\n"
-          "a: humn + c\n"
-          "c: 9\n"
+          "a: c + d\n"
+          "c: 18\n"
           "b: 27\n"
+          "d: e - humn\n"
+          "e: 5\n"
           "humn: 5\n"
-          >>,
+        >>,
 
-  ?assertEqual(18, solve(Bin)).
+  ?assertEqual({45, 4}, solve(Bin)).
 
 ex3_test() ->
-  Bin = <<"root: a + b\n"
-          "a: humn * c\n"
-          "c: 9\n"
-          "b: 27\n"
-          "humn: 5\n"
-          >>,
-
-  ?assertEqual(3, solve(Bin)).
-
-ex4_test() ->
   Bin = <<"root: a + b\n"
           "a: c * humn\n"
           "c: 9\n"
           "b: 27\n"
           "humn: 5\n"
-          >>,
+        >>,
+  ?assertEqual({72, 3}, solve(Bin)).
 
-  ?assertEqual(3, solve(Bin)).
-
-ex5_test() ->
+ex4_test() ->
   Bin = <<"root: a + b\n"
           "a: c / humn\n"
           "c: 9\n"
           "b: 3\n"
           "humn: 5\n"
-          >>,
+        >>,
 
-  ?assertEqual(3, solve(Bin)).
+  ?assertEqual({4, 3}, solve(Bin)).
+
+ex5_test() ->
+  Bin = <<"root: a + b\n"
+          "a: humn + c\n"
+          "b: 27\n"
+          "c: 18\n"
+          "humn: 5\n"
+          >>,
+  ?assertEqual({50, 9}, solve(Bin)).
+
 
 ex6_test() ->
   Bin = <<"root: a + b\n"
-          "a: c - humn\n"
-          "c: 9\n"
-          "b: 3\n"
+          "a: humn - c\n"
+          "b: 27\n"
+          "c: 18\n"
           "humn: 5\n"
           >>,
-
-  ?assertEqual(6, solve(Bin)).
-
-ex7_test() ->
-  Bin = <<"root: a + b\n"
-          "a: a1 + a2\n"
-          "b: b1 + b2\n"
-          "a1: 1\n"
-          "a2: humn + a3\n"
-          "a3: 42\n"
-          "b1: 5\n"
-          "b2: 6\n",
-          "humn: 0\n"
-          >>,
-
-  ?assertEqual(6, solve(Bin)).
+  ?assertEqual({14, 45}, solve(Bin)).
 
 -endif.
