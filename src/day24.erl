@@ -9,85 +9,87 @@
          , nowarn_export_all
          ]).
 
--include_lib("eunit/include/eunit.hrl").
+%% -include_lib("eunit/include/eunit.hrl").
 
--define(int(X), binary_to_integer(X)).
--define(atom(X), binary_to_atom(X)).
--define(match(Subject, RE), re:run(Subject, RE, [{capture, all_but_first, binary}])).
+%% -define(int(X), binary_to_integer(X)).
+%% -define(atom(X), binary_to_atom(X)).
+%% -define(match(Subject, RE), re:run(Subject, RE, [{capture, all_but_first, binary}])).
 
-%% Delta coordinates for N/S/E/W
--define(DELTAS, [{0, -1}, {0, 1}, {-1, 0}, {1, 0}]).
+%% %% Delta coordinates for N/S/E/W
+%% -define(DELTAS, [{0, -1}, {0, 1}, {-1, 0}, {1, 0}]).
 
-%% State record for various processing tasks
--record(state, {}).
+%% %% State record for various processing tasks
+%% -record(state, {}).
 
-%% Some commonly used types
--type coord() :: {X :: integer(), Y :: integer()}.
--type coord3d() :: {X :: integer(), Y :: integer(), Z :: integer()}.
+%% %% Some commonly used types
+%% -type coord() :: {X :: integer(), Y :: integer()}.
+%% -type coord3d() :: {X :: integer(), Y :: integer(), Z :: integer()}.
 
 solve() ->
-  Day = 24,
-  Bin = input:get(Day),
+  tbd.
 
-  %% Split input into lines
-  Lines = binary:split(Bin, <<"\n">>, [global]),
+%%   Day = 24,
+%%   Bin = input:get(Day),
 
-  %% Split lines of input into words
-  _Words = lists:foldl(
-             fun(<<>>, Acc) -> Acc; %% Ignore trailing empty line
-                (Line, Acc) ->
-                 [binary:split(Line, <<" ">>, [global])|Acc]
-             end, [], Lines),
+%%   %% Split input into lines
+%%   Lines = binary:split(Bin, <<"\n">>, [global]),
 
-  %% Split lines using regexp
-  _RegexWords =
-    lists:foldl(
-      fun(<<>>, Acc) -> Acc; %% Ignore trailing empty line
-         (Line, Acc) ->
-          {match, [A, B]} = ?match(Line, "(.*): (.*)"),
-          [{A, B}|Acc]
-      end, [], Lines),
+%%   %% Split lines of input into words
+%%   _Words = lists:foldl(
+%%              fun(<<>>, Acc) -> Acc; %% Ignore trailing empty line
+%%                 (Line, Acc) ->
+%%                  [binary:split(Line, <<" ">>, [global])|Acc]
+%%              end, [], Lines),
 
-  %% Split lines into a map
-  _Map =
-    lists:foldl(
-      fun(<<>>, Acc) -> Acc; %% Ignore trailing empty line
-         (Line, Acc) ->
-          {match, [A, B]} = ?match(Line, "(.*): (.*)"),
-          maps:put(?atom(A), B, Acc)
-      end, #{}, Lines),
+%%   %% Split lines using regexp
+%%   _RegexWords =
+%%     lists:foldl(
+%%       fun(<<>>, Acc) -> Acc; %% Ignore trailing empty line
+%%          (Line, Acc) ->
+%%           {match, [A, B]} = ?match(Line, "(.*): (.*)"),
+%%           [{A, B}|Acc]
+%%       end, [], Lines),
 
-  %% Iterate with state over the input
-  StateIn = #state{},
-  StateOut = lists:foldl(
-               fun(Line, State0) ->
-                   modify_state(Line, State0)
-               end, StateIn, Lines),
+%%   %% Split lines into a map
+%%   _Map =
+%%     lists:foldl(
+%%       fun(<<>>, Acc) -> Acc; %% Ignore trailing empty line
+%%          (Line, Acc) ->
+%%           {match, [A, B]} = ?match(Line, "(.*): (.*)"),
+%%           maps:put(?atom(A), B, Acc)
+%%       end, #{}, Lines),
 
-  {StateOut, Bin}.
+%%   %% Iterate with state over the input
+%%   StateIn = #state{},
+%%   StateOut = lists:foldl(
+%%                fun(Line, State0) ->
+%%                    modify_state(Line, State0)
+%%                end, StateIn, Lines),
 
-modify_state(_Line, State) ->
-  State.
+%%   {StateOut, Bin}.
 
-%% Utility functions
-%% =============================================================================
+%% modify_state(_Line, State) ->
+%%   State.
 
-%% Manhattan distance
--spec dist(A :: coord(), B :: coord()) -> integer().
-dist({X0, Y0}, {X1, Y1}) ->
-  abs(X0 - X1) + abs(Y0 - Y1).
+%% %% Utility functions
+%% %% =============================================================================
 
--spec dist3d(A :: coord3d(), B :: coord3d()) -> integer().
-dist3d({X0, Y0, Z0}, {X1, Y1, Z1}) ->
-  abs(X0 - X1) + abs(Y0 - Y1) + abs(Z0 - Z1).
+%% %% Manhattan distance
+%% -spec dist(A :: coord(), B :: coord()) -> integer().
+%% dist({X0, Y0}, {X1, Y1}) ->
+%%   abs(X0 - X1) + abs(Y0 - Y1).
 
-%% Tests
-%% =============================================================================
+%% -spec dist3d(A :: coord3d(), B :: coord3d()) -> integer().
+%% dist3d({X0, Y0, Z0}, {X1, Y1, Z1}) ->
+%%   abs(X0 - X1) + abs(Y0 - Y1) + abs(Z0 - Z1).
 
--ifdef(TEST).
+%% %% Tests
+%% %% =============================================================================
 
-solve_test() ->
-  ok.
-%% ?assertEqual(not_solved, solve()).
+%% -ifdef(TEST).
 
--endif.
+%% solve_test() ->
+%%   ok.
+%% %% ?assertEqual(not_solved, solve()).
+
+%% -endif.

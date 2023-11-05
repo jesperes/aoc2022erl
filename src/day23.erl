@@ -128,7 +128,6 @@ dir(3) -> east.
 -ifdef(TEST).
 
 solve_test() ->
-  ok.
-  %% {timeout, 1000, fun() -> ?assertEqual({3684, 862}, solve()) end}.
+  ?assertEqual({3684, 862}, solve()).
 
 -endif.

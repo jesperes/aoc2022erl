@@ -6,6 +6,8 @@
         , tabulate/1
         ]).
 
+-include_lib("eunit/include/eunit.hrl").
+
 timings() ->
   Loadable = lists:map(
                fun({Module, _, _}) ->
@@ -54,7 +56,7 @@ get_avg(V1) ->
 timing(Module) ->
   MaxSecs = 5,
   MinIter = 1,
-  MaxIter = 1000,
+  MaxIter = 100,
   %% warmup
   %% run(Module, 5, 0, 1, 10000),
   Values = run(Module, MaxSecs, 0, MinIter, MaxIter),
@@ -68,6 +70,40 @@ run(_, TimeRemainingUsecs, Iter, MinIter, MaxIter, Acc) when
     (Iter >= MaxIter) ->
   Acc;
 run(Module, TimeRemainingUsecs, Iter, MinIter, MaxIter, Acc) ->
-  %% io:format("Timing module ~p, time remaining: ~p~n", [Module, TimeRemainingUsecs]),
-  {Time, _} = timer:tc(Module, solve, []),
+  io:format("Timing module ~p, time remaining: ~p       \r", [Module, TimeRemainingUsecs]),
+  {Time, Result} = timer:tc(Module, solve, []),
+  case Module of
+    day01 -> ?assertEqual({69836, 207968}, Result);
+    day02 -> ?assertEqual({14297, 10498}, Result);
+    day03 -> ?assertEqual({8349, 2681}, Result);
+    day04 -> ?assertEqual({582, 893}, Result);
+    day05 -> ?assertEqual({"CNSZFDVLJ","QNDWLMGNS"}, Result);
+    day06 -> ?assertEqual({1802, 3551}, Result);
+    day07 -> ?assertEqual({1543140, 1117448}, Result);
+    day08 -> ?assertEqual({1684, 486540}, Result);
+    day09 -> ?assertEqual({6311, 2482}, Result);
+    day10 -> ?assertEqual({14060,
+                           <<"███   ██  ███  █  █ ████ █  █ ████   ██ \n"
+                             "█  █ █  █ █  █ █ █  █    █ █  █       █ \n"
+                             "█  █ █  █ █  █ ██   ███  ██   ███     █ \n"
+                             "███  ████ ███  █ █  █    █ █  █       █ \n"
+                             "█    █  █ █    █ █  █    █ █  █    █  █ \n"
+                             "█    █  █ █    █  █ █    █  █ ████  ██  \n"/utf8>>},
+                          Result);
+    day11 -> ?assertEqual({102399, 23641658401}, Result);
+    day12 -> ?assertEqual({370, 363}, Result);
+    day13 -> ?assertEqual({5198, 22344}, Result);
+    day14 -> ?assertEqual({696, 23610}, Result);
+    day15 -> ?assertEqual({4665948, 13543690671045}, Result);
+    day16 -> ?assertEqual({1376, 1933}, Result);
+    day17 -> ?assertEqual(3153, Result);                                %% TBD part 2
+    day18 -> ?assertEqual({3530, 2000}, Result);
+    day19 -> ?assertEqual({1382, 31740}, Result);
+    day20 -> ?assertEqual({7278, 14375678667089}, Result);
+    day21 -> ?assertEqual({268597611536314, 3451534022348}, Result);
+    day22 -> ?assertEqual(tbd, Result);
+    day23 -> ?assertEqual({3684, 862}, Result);
+    day24 -> ?assertEqual(tbd, Result);                                 %% TBD
+    day25 -> ?assertEqual(tbd, Result)
+  end,
   run(Module, TimeRemainingUsecs - Time, Iter + 1, MinIter, MaxIter, [Time|Acc]).

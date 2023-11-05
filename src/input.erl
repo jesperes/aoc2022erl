@@ -40,4 +40,5 @@ get(20) -> ct_expand:term(do_get(20));
 get(21) -> ct_expand:term(do_get(21));
 get(22) -> ct_expand:term(do_get(22));
 get(23) -> ct_expand:term(do_get(23));
-get(24) -> ct_expand:term(do_get(24)).
+get(24) -> ct_expand:term(do_get(24));
+get(25) -> ct_expand:term(do_get(25)).
