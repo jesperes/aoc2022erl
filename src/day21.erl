@@ -110,7 +110,7 @@ reduce(L, R) when is_integer(R) andalso is_tuple(L) -> reduce(R, L);
 reduce(Num, humn) -> Num;
 reduce(Num, {expr, L, '+', R}) when is_integer(L) -> reduce(Num - L, R);
 reduce(Num, {expr, L, '+', R}) when is_integer(R) -> reduce(Num - R, L);
-reduce(Num, {expr, L, '-', R}) when is_integer(L) -> reduce(Num + L, R);
+reduce(Num, {expr, L, '-', R}) when is_integer(L) -> reduce(L - Num, R);
 reduce(Num, {expr, L, '-', R}) when is_integer(R) -> reduce(Num + R, L);
 reduce(Num, {expr, L, '*', R}) when is_integer(L) -> reduce(Num div L, R);
 reduce(Num, {expr, L, '*', R}) when is_integer(R) -> reduce(Num div R, L);
@@ -123,11 +123,11 @@ reduce(Num, {expr, L, '/', R}) when is_integer(R) -> reduce(Num * R, L).
 
 -ifdef(TEST).
 
-%%testdata_test() ->
-%%  ?assertEqual({152, 301}, solve(test_input())).
+testdata_test() ->
+  ?assertEqual({152, 301}, solve(test_input())).
 
-%%realdata_test() ->
-%%  ?assertEqual({268597611536314, not_solved}, solve()).
+realdata_test() ->
+  ?assertEqual({268597611536314, not_solved}, solve()).
 
 %% ex1_test() ->
 %%   Bin = <<"root: a + b\n"
@@ -148,7 +148,9 @@ ex2_test() ->
           "humn: 5\n"
         >>,
 
-  ?assertEqual({45, 4}, solve(Bin)).
+  %% {_, _} = redbug:start("day21:reduce->return", [{msgs, 100000}]),
+
+  ?assertEqual({45, -4}, solve(Bin)).
 
 %% ex3_test() ->
 %%   Bin = <<"root: a + b\n"
