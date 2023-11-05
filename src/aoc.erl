@@ -70,7 +70,8 @@ run(_, TimeRemainingUsecs, Iter, MinIter, MaxIter, Acc) when
     (Iter >= MaxIter) ->
   Acc;
 run(Module, TimeRemainingUsecs, Iter, MinIter, MaxIter, Acc) ->
-  io:format("Timing module ~p, time remaining: ~p       \r", [Module, TimeRemainingUsecs]),
+  io:format("Timing module ~p, time remaining: ~.1fs       \r",
+            [Module, TimeRemainingUsecs / 1_000_000.0]),
   {Time, Result} = timer:tc(Module, solve, []),
   case Module of
     day01 -> ?assertEqual({69836, 207968}, Result);
