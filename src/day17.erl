@@ -61,7 +61,7 @@ solve() ->
 solve(N) ->
   Bin = input:get(17),
   %% Bin = <<">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>\n">>,
-  drop_rocks(Bin, N).
+  {drop_rocks(Bin, N), tbd}.
 
 drop_rocks(Bin, N) ->
   BottomLine = sets:from_list([{0,0}, {1,0}, {2,0}, {3,0}, {4,0}, {5,0}, {6,0}]),
@@ -235,7 +235,7 @@ move(?JET_RIGHT, Offset, #rock{width = Width}) ->
 -ifdef(TEST).
 
 day17_test() ->
-  3153 = solve(?NUM_ROCKS_PART1).
+  {3153, tbd} = solve(?NUM_ROCKS_PART1).
   %% not_solved = solve(?NUM_ROCKS_PART2).
 
 -endif.
