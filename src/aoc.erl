@@ -40,9 +40,10 @@ maybe_trunc(Sol) ->
       Str
   end.
 
-block(Float) ->
-  WholeBlocks = trunc(Float),
-  Sub = Float - WholeBlocks,
+block(Percentage, Total) ->
+  FracBlocks = Percentage * Total,
+  WholeBlocks = trunc(FracBlocks),
+  Sub = FracBlocks - WholeBlocks,
   SubBlock = if Sub =< 1/32 -> 32;
                 Sub =< 1/8 -> 16#258F;
                 Sub =< 2/8 -> 16#258E;
@@ -76,8 +77,8 @@ tabulate(Runs) ->
        fun({Module, Results}) ->
            {Values, [Solution|_]} = lists:unzip(Results),
            {NumVals, Avg, Min, Max} = get_avg(Values),
-           P = 40 * (Avg / AvgTotal),
-           RelBlock = block(P),
+           P = Avg / AvgTotal,
+           RelBlock = block(P, RelWidth),
            io_lib:format("~s@~ts@~w@~w@~w@~w@~s~n",
                          [Module,
                           RelBlock,
@@ -106,7 +107,7 @@ get_avg(V1) ->
 timing(Module) ->
   MaxSecs = 5,
   MinIter = 1,
-  MaxIter = 1,
+  MaxIter = 100,
   Values = run(Module, MaxSecs, 0, MinIter, MaxIter),
   {Module, Values}.
 
