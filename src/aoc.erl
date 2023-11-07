@@ -31,14 +31,25 @@ timings(Days) ->
 
 tabulate(Runs) ->
   io:setopts([{encoding, unicode}]),
+
+  {AvgTotal, MinTotal, MaxTotal} =
+    lists:foldl(fun({_Module, Values}, {AvgAcc, MinAcc, MaxAcc}) ->
+                    {_NumVals, Avg, Min, Max} = get_avg(Values),
+                    {AvgAcc + Avg,
+                     MinAcc + Min,
+                     MaxAcc + Max}
+                end, {0, 0, 0}, Runs),
+
   Str =
-    [io_lib:format("Module,Avg (μs),Min (μs), Max (μs),Iter,σ~n", []),
+    [io_lib:format("Module,Avg (μs),Min (μs), Max (μs),Iter~n", []),
      lists:map(
        fun({Module, Values}) ->
            {NumVals, Avg, Min, Max} = get_avg(Values),
            io_lib:format("~s,~w,~w,~w,~w~n",
                          [Module, Avg, Min, Max, NumVals])
-       end, Runs)],
+       end, Runs)] ++
+    io_lib:format("Total,~w,~w,~w~n", [AvgTotal, MinTotal, MaxTotal]),
+
   case unicode:characters_to_binary(Str) of
     Bin when is_binary(Bin) ->
       ok = file:write_file("/tmp/tabulate", Bin),
@@ -57,8 +68,6 @@ timing(Module) ->
   MaxSecs = 5,
   MinIter = 1,
   MaxIter = 100,
-  %% warmup
-  %% run(Module, 5, 0, 1, 10000),
   Values = run(Module, MaxSecs, 0, MinIter, MaxIter),
   {Module, Values}.
 

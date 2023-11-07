@@ -11,31 +11,6 @@
 -define(LEFT, 2).
 -define(UP, 3).
 
-heading(0) ->
-  right;
-heading(1) ->
-  down;
-heading(2) ->
-  left;
-heading(3) ->
-  up.
-
-test_data() ->
-  <<"        ...#    \n"
-    "        .#..    \n"
-    "        #...    \n"
-    "        ....    \n"
-    "...#.......#    \n"
-    "........#...    \n"
-    "..#....#....    \n"
-    "..........#.    \n"
-    "        ...#....\n"
-    "        .....#..\n"
-    "        .#......\n"
-    "        ......#.\n"
-    "                \n"
-    "10R5L5R10L4R5L5\n">>.
-
 solve() ->
   solve(input:get(22)).
 
@@ -53,12 +28,9 @@ coords(_, _, _, Map) ->
 
 instructions(Bin) ->
   {match, Matches} = re:run(Bin, "(\\d+|[RL])", [global, {capture, all_but_first, binary}]),
-  lists:map(fun ([<<"R">>]) ->
-                'R';
-                ([<<"L">>]) ->
-                'L';
-                ([N]) ->
-                binary_to_integer(N)
+  lists:map(fun ([<<"R">>]) -> 'R';
+                ([<<"L">>]) -> 'L';
+                ([N]) -> binary_to_integer(N)
             end,
             Matches).
 
@@ -93,9 +65,6 @@ solve(Bin) ->
   Map = coords(Bin),
   Instrs = instructions(Bin),
   Start = start_coord(Bin),
-  %% io:format("~s~n", [grid:to_str(Map)]),
-  %% io:format("~p~n", [Instrs]),
-  %% io:format("start: ~p~n", [Start]),
   {walk(Start, ?RIGHT, Instrs, Map, 1),
    walk(Start, ?RIGHT, Instrs, Map, 2)}.
 
@@ -122,10 +91,8 @@ steps(Pos, Heading, Dist, Map, Part) ->
         $# -> {Pos, Heading};
         $. -> steps(WarpDest, WarpHeading, Dist - 1, Map, Part)
       end;
-    $# ->
-      {Pos, Heading};
-    $. ->
-      steps(NewPos, Heading, Dist - 1, Map, Part)
+    $# -> {Pos, Heading};
+    $. -> steps(NewPos, Heading, Dist - 1, Map, Part)
   end.
 
 warp_dest(Pos, Heading, Map, 1) ->
@@ -136,14 +103,13 @@ warp_dest(Pos, Heading, _Map, 2) ->
 warp_dest1(Pos, RevHeading, Map) ->
   RevPos = forward(Pos, RevHeading),
   case tile_type(RevPos, Map) of
-    undefined ->
-      Pos;
-    _ ->
-      warp_dest1(RevPos, RevHeading, Map)
+    undefined -> Pos;
+    _ -> warp_dest1(RevPos, RevHeading, Map)
   end.
 
-%% Rules for warping around the sides of the cube. There are 14 of
-%% these, corresponding to the 14 "open" edges in the flattened cube.
+%% Part 2. Handcoded rules for warping around the sides of the
+%% cube. There are 14 of these, corresponding to the 14 "open" edges
+%% in the flattened cube.
 warp_dest2({X, Y}, ?LEFT) when X == 0 andalso Y =< 149 ->
   {{50, 149 - Y}, ?RIGHT}; %% 4 left -> 1 left
 warp_dest2({X, Y}, ?RIGHT) when X == 149 ->
