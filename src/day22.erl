@@ -96,9 +96,8 @@ solve(Bin) ->
   %% io:format("~s~n", [grid:to_str(Map)]),
   %% io:format("~p~n", [Instrs]),
   %% io:format("start: ~p~n", [Start]),
-  walk(Start, ?RIGHT, Instrs, Map, 1).
-
-%% walk(Start, ?RIGHT, Instrs, Map, 2)}.
+  {walk(Start, ?RIGHT, Instrs, Map, 1),
+   walk(Start, ?RIGHT, Instrs, Map, 2)}.
 
 walk({X, Y}, Heading, [], _Map, _Part) ->
   Row = Y + 1,
@@ -109,30 +108,28 @@ walk(Pos, Heading, ['L' = Left | Instrs], Map, Part) ->
 walk(Pos, Heading, ['R' = Right | Instrs], Map, Part) ->
   walk(Pos, turn(Right, Heading), Instrs, Map, Part);
 walk(Pos, Heading, [Dist | Instrs], Map, Part) ->
-  NewPos = steps(Pos, Heading, Dist, Map, Part),
-  walk(NewPos, Heading, Instrs, Map, Part).
+  {NewPos, NewHeading} = steps(Pos, Heading, Dist, Map, Part),
+  walk(NewPos, NewHeading, Instrs, Map, Part).
 
-steps(Pos, _Heading, 0, _Map, _Part) ->
-  Pos;
+steps(Pos, Heading, 0, _Map, _Part) ->
+  {Pos, Heading};
 steps(Pos, Heading, Dist, Map, Part) ->
   NewPos = forward(Pos, Heading),
   case tile_type(NewPos, Map) of
     undefined ->
-      WarpDest = warp_dest(Pos, Heading, Map, Part),
+      {WarpDest, WarpHeading} = warp_dest(Pos, Heading, Map, Part),
       case tile_type(WarpDest, Map) of
-        $# ->
-          Pos;
-        $. ->
-          steps(WarpDest, Heading, Dist - 1, Map, Part)
+        $# -> {Pos, Heading};
+        $. -> steps(WarpDest, WarpHeading, Dist - 1, Map, Part)
       end;
     $# ->
-      Pos;
+      {Pos, Heading};
     $. ->
       steps(NewPos, Heading, Dist - 1, Map, Part)
   end.
 
 warp_dest(Pos, Heading, Map, 1) ->
-  warp_dest1(Pos, turn180(Heading), Map);
+  {warp_dest1(Pos, turn180(Heading), Map), Heading};
 warp_dest(Pos, Heading, _Map, 2) ->
   warp_dest2(Pos, Heading).
 
@@ -144,39 +141,6 @@ warp_dest1(Pos, RevHeading, Map) ->
     _ ->
       warp_dest1(RevPos, RevHeading, Map)
   end.
-
-%% My input looks like this:
-%%             50 99   149
-%%        0  49|  | 100|
-%%        |  | |  | |  |
-%% +----------6---+ +-----------+
-%% |+------6---+  | 6  +--6----+|
-%% ||          |  | |  |       ||
-%% ||+---------a11b-a22b---+   ||       0
-%% |||         1111 2222   |   ||
-%% |||         1111 2222   |   ||
-%% ||| +-------c11d-c22d-+ |   ||       49
-%% ||| |       |  | |  | | |   ||
-%% ||| |  +----a33b-+  | | |   ||       50
-%% ||| |  |    3333    | | |   ||
-%% ||| |  |    3333    | | |   ||
-%% ||| |  |  +-c33d----+ | |   ||       99
-%% ||| |  |  | |  |      | |   ||
-%% ||| +--a44b-a55b------+ |   ||      100
-%% |||    4444 5555        |   ||
-%% |||    4444 5555        |   ||
-%% ||+----c44d-c55d--------+   ||      149
-%% ||     |  | |  |            ||
-%% |+--1--a66b-+  |            ||      150
-%% |      6666    |            ||
-%% |      6666    |            ||
-%% +---1--c66d----+            ||      199
-%%        |  |                 ||
-%%        |  +-----------------+|
-%%        +---------------------+
-%%
-%% The sides of the cube are 50x50
-%%
 
 %% Rules for warping around the sides of the cube. There are 14 of
 %% these, corresponding to the 14 "open" edges in the flattened cube.
@@ -211,34 +175,7 @@ warp_dest2({X, Y}, ?RIGHT) when X == 99 andalso Y >= 100 ->
 
 -ifdef(TEST).
 
-%% Test that warp_dest2/1 is consistent, i.e. for each empty position
-%% along the edges, you can warp through, turn around 180 degrees,
-%% then warp back to the same location.
-warp_dest2_test() ->
-  Bin = input:get(22),
-  Map = coords(Bin),
-  lists:foreach(
-    fun({Pos, Heading}) ->
-        case tile_type(Pos, Map) of
-          $. ->
-            NewPos = forward(Pos, Heading),
-            case tile_type(NewPos, Map) of
-              undefined ->
-                {WarpDest, WarpHeading} = warp_dest2(Pos, Heading),
-                RevHeading = turn180(WarpHeading),
-                {OrigPos, RevRevHeading} = warp_dest2(WarpDest, RevHeading),
-                OrigHeading = turn180(RevRevHeading),
-                ?assertEqual(heading(OrigHeading), heading(Heading)),
-                ?assertEqual(OrigPos, Pos);
-              $# ->
-                ok;
-              $. ->
-                ok
-            end;
-          $# ->
-            ok
-        end
-    end,
-    lists:sort([{Pos, Heading} || Pos <- maps:keys(Map), Heading <- lists:seq(0, 3)])).
+solve_test() ->
+  ?assertEqual({56372, 197047}, solve()).
 
 -endif.
