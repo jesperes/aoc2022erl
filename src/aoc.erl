@@ -153,7 +153,7 @@ run(Module, TimeRemainingUsecs, Iter, MinIter, MaxIter, Acc) ->
     day21 -> ?assertEqual({268597611536314, 3451534022348}, Result);
     day22 -> ?assertEqual({56372, 197047}, Result);
     day23 -> ?assertEqual({3684, 862}, Result);
-    day24 -> ?assertEqual({tbd, tbd}, Result);
-    day25 -> ?assertEqual(tbd, Result)
+    day24 -> ?assertEqual({245, 798}, Result);
+    day25 -> ?assertEqual("2=0=02-0----2-=02-10", Result)
   end,
   run(Module, TimeRemainingUsecs - Time, Iter + 1, MinIter, MaxIter, [{Time, Result}|Acc]).
