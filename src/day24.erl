@@ -3,10 +3,6 @@
 -export([ solve/0
         ]).
 
--compile([ export_all
-         , nowarn_export_all
-         ]).
-
 -include_lib("eunit/include/eunit.hrl").
 
 -record(state, { blizzard = #{}   %% Start position of all blizzards
@@ -18,25 +14,7 @@
                , height = 0 :: integer()
                }).
 
-test_data() ->
-  <<"#.#####\n"
-    "#.....#\n"
-    "#>....#\n"
-    "#.....#\n"
-    "#...v.#\n"
-    "#.....#\n"
-    "#####.#\n">>.
-
-test_data2() ->
-  <<"#.######\n",
-    "#>>.<^<#\n",
-    "#.<..<<#\n",
-    "#>v.><>#\n",
-    "#<^v^^>#\n",
-    "######.#\n">>.
-
 solve() ->
-  %% Bin = test_data2(),
   Bin = input:get(24),
   State0 = parse(Bin, 0, 0, #state{}),
 
@@ -97,7 +75,6 @@ a_star(OpenSet, GScore, #state{'end' = End} = State) ->
 
 get_neighbors({{X, Y} = _Pos, N} = _Node, #state{walls = Walls, width = Width, height = Height} = State) ->
   {BlizzardN, State0} = get_blizzard_n(State, N),
-
   Nbrs =
     [{{Px, Py}, N + 1}
      || {Px, Py} <- [{X + 1, Y},
@@ -107,16 +84,9 @@ get_neighbors({{X, Y} = _Pos, N} = _Node, #state{walls = Walls, width = Width, h
                      {X, Y}],
         Px >= 0, Px < Width + 2,
         Py >= 0, Py < Height + 2,
-        not maps:is_key({Px, Py}, Walls),
-        not is_blizzard({Px, Py}, BlizzardN)],
-
-  {Nbrs, State0}.
-
-is_blizzard(Pos, Blizzard) ->
-  maps:is_key({Pos, $<}, Blizzard) orelse
-    maps:is_key({Pos, $>}, Blizzard) orelse
-    maps:is_key({Pos, $^}, Blizzard) orelse
-    maps:is_key({Pos, $v}, Blizzard).
+        not maps:is_key({Px, Py}, BlizzardN),
+        not maps:is_key({Px, Py}, Walls)
+    ], {Nbrs, State0}.
 
 %% Compute where the blizzards are at a given time, and cache the result.
 get_blizzard_n(#state{blizzard = Blizzard,
@@ -127,10 +97,11 @@ get_blizzard_n(#state{blizzard = Blizzard,
   case maps:get(N, Blizzards, undefined) of
     undefined ->
       BlizzardN =
-        lists:foldl(
-          fun({Pos, Dir}, Acc) ->
-              maps:put({blizzard_pos(Pos, N, W, H, Dir), Dir}, true, Acc)
-          end, #{}, maps:keys(Blizzard)),
+        maps:fold(
+          fun(Pos, Dir, Acc) ->
+              NewPos = blizzard_pos(Pos, N, W, H, Dir),
+              maps:put(NewPos, true, Acc)
+          end, #{}, Blizzard),
       {BlizzardN, State#state{blizzards = maps:put(N, BlizzardN, Blizzards)}};
     Map ->
       {Map, State}
@@ -149,13 +120,6 @@ blizzard_pos({X, Y}, N, _W, H, $^) ->
 dist({X0, Y0}, {X1, Y1}) ->
   abs(X0 - X1) + abs(Y0 - Y1).
 
-blizzard_to_str(P, Walls, Blizzard) ->
-  Map = lists:foldl(fun({Pos, Dir}, Acc) ->
-                        maps:put(Pos, Dir, Acc)
-                    end, #{}, maps:keys(Blizzard)),
-  grid:to_str(maps:merge(Map, maps:put(P, $*, Walls))).
-
-
 %% Parser
 parse(<<>>, _, _, State) ->
   State;
@@ -170,8 +134,8 @@ parse(<<$\n, Rest/binary>>, _X, Y, State) ->
   parse(Rest, 0, Y + 1, State);
 parse(<<$., Rest/binary>>, X, Y, State) ->
   parse(Rest, X + 1, Y, State);
-parse(<<B, Rest/binary>>, X, Y, #state{blizzard = Map} = State) ->
-  parse(Rest, X + 1, Y, State#state{blizzard = maps:put({{X, Y}, B}, true, Map)}).
+parse(<<Dir, Rest/binary>>, X, Y, #state{blizzard = Map} = State) ->
+  parse(Rest, X + 1, Y, State#state{blizzard = maps:put({X, Y}, Dir, Map)}).
 
 -ifdef(TEST).
 

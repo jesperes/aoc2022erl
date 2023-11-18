@@ -36,7 +36,6 @@ solve() ->
   {no_move, Round, _NoMoveElves} = do_rounds(After10, 10, infinity),
   P2 = Round + 1,
 
-  %% print_elves(NoMoveElves),
   {P1, P2}.
 
 limits(Elves) ->
@@ -76,7 +75,7 @@ do_one_round(Elves, N) ->
           end
       end, {maps:new(), maps:new()}, Elves),
 
-  NonConflicingMoves =
+  NonConflictingMoves =
     maps:filter(
       fun(_ElfKey, Move) ->
           ElfsMovingHere = maps:get(Move, MoveMap),
@@ -85,7 +84,7 @@ do_one_round(Elves, N) ->
           end
       end, ElfMap),
 
-  case maps:size(NonConflicingMoves) of
+  case maps:size(NonConflictingMoves) of
     0 ->
       {false, Elves};
     _ ->
@@ -93,7 +92,7 @@ do_one_round(Elves, N) ->
                             E0 = maps:remove(Elf, ElvesIn),
                             E1 = maps:put(Move, true, E0),
                             E1
-                        end, Elves, NonConflicingMoves)}
+                        end, Elves, NonConflictingMoves)}
   end.
 
 possible_moves(Elf, Round, Elves) ->
