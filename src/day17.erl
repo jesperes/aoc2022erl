@@ -8,7 +8,6 @@
 
 -define(debug(Fmt, Args), io:format(standard_error, Fmt, Args)).
 
-
 -define(ROCKS, [[2#0011110],
 
                 [2#0001000,
@@ -27,30 +26,53 @@
                 [2#0011000,
                  2#0011000]]).
 
+-define(STATE_SIZE, 18).
 %% Chamber is represented as a list of integers, where the head of the
 %% list is upwards.
 
 solve() ->
   Jets = input:get(17),
-  FinalChamber = drop_rocks(0, 0, Jets, [], 2022),
-  length(FinalChamber).
+  P1 = drop_rocks(Jets, 2022),
+  P2 = drop_rocks(Jets, 1_000_000_000_000),
+  {P1, P2}.
 
-strip_empty_rows([]) -> [];
-strip_empty_rows([0|Rest]) ->
-  strip_empty_rows(Rest);
-strip_empty_rows(List) ->
-  List.
+drop_rocks(Jets, Limit) ->
+  drop_rocks(0, 0, Jets, [], #{}, Limit, undefined).
 
-drop_rocks(_RockIdx, _JetIdx, _Jets, Chamber, 0) ->
-  strip_empty_rows(Chamber);
-drop_rocks(RockIdx, JetIdx, Jets, Chamber, Limit) ->
+drop_rocks(_RockIdx, _JetIdx, _Jets, Chamber, _States, 0, undefined) ->
+  length(strip_empty_rows(Chamber));
+drop_rocks(_RockIdx, _JetIdx, _Jets, Chamber, _States, 0, WarpHeight) ->
+  length(strip_empty_rows(Chamber)) + WarpHeight;
+drop_rocks(RockIdx, JetIdx, Jets, Chamber, States, Limit, WarpHeight) ->
   Rock = get_rock(RockIdx),
   RockLen = length(Rock),
   Chamber0 = lists:duplicate(RockLen, 0) ++ [0, 0, 0] ++ strip_empty_rows(Chamber),
   %% ?debug("~nThe first rock begins falling:~n~s~n", [print_chamber(Rock, 0, Chamber0)]),
   {Chamber1, JetIdx0} = drop_one_rock(Rock, RockLen, JetIdx, Jets, Chamber0),
   %% ?debug("~nFinal chamber after this rock:~n~s~n", [print_chamber(Chamber1)]),
-  drop_rocks(RockIdx + 1, JetIdx0, Jets, Chamber1, Limit - 1).
+
+  %% ?debug("Height: ~p, Limit = ~p~n", [length(Chamber1), Limit]),
+
+  {States0, Limit0, WarpHeight0} =
+    case {WarpHeight, length(Chamber1)} of
+      {undefined, Len} when Len > ?STATE_SIZE ->
+        {TopRows, _} = lists:split(?STATE_SIZE, Chamber1),
+        Key = {JetIdx rem (byte_size(Jets) - 1), TopRows},
+        Value = {RockIdx, Len},
+        case maps:get(Key, States, undefined) of
+          undefined ->
+            {maps:put(Key, Value, States), Limit, WarpHeight};
+          {CycleStartRockIdx, CycleStartLen} ->
+            CycleLen = Len - CycleStartLen,
+            RocksPerCycle = RockIdx - CycleStartRockIdx,
+            NumCycles = (Limit - CycleStartRockIdx) div RocksPerCycle - 1,
+            {States, Limit - (NumCycles * RocksPerCycle), NumCycles * CycleLen}
+        end;
+      _ ->
+        {States, Limit, WarpHeight}
+    end,
+
+  drop_rocks(RockIdx + 1, JetIdx0, Jets, Chamber1, States0, Limit0 - 1, WarpHeight0).
 
 drop_one_rock(Rock, RockLen, JetIdx, Jets, Chamber) ->
   {Jet, NewJetIdx} = get_jet(JetIdx, Jets),
@@ -123,6 +145,11 @@ get_jet(JetIdx, Jets) ->
       get_jet(0, Jets)
   end.
 
+strip_empty_rows([]) -> [];
+strip_empty_rows([0|Rest]) ->
+  strip_empty_rows(Rest);
+strip_empty_rows(List) ->
+  List.
 
 print_chamber(Chamber) ->
   print_chamber([], 0, Chamber).
@@ -176,10 +203,10 @@ push_rock3_test() ->
 
 drop_rocks_test() ->
   Jets = <<">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>\n">>,
-  FinalChamber = drop_rocks(0, 0, Jets, [], 2022),
-  ?assertEqual(3068, length(FinalChamber)).
+  Height = drop_rocks(Jets, 2022),
+  ?assertEqual(3068, Height).
 
 day17_test() ->
-  ?assertEqual(3153, solve()).
+  ?assertEqual({3153, 1553665689155}, solve()).
 
 -endif.
