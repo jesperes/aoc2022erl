@@ -51,8 +51,6 @@ solve_for_humn(Monkey, Map) ->
     {expr, L, '+', R} when Monkey =:= root ->
       reduce(eval(solve_for_humn(L, Map)),
              eval(solve_for_humn(R, Map)));
-    {expr, Left, Op, Right} when is_integer(Left) andalso is_integer(Right) ->
-      erlang:Op(Left, Right);
     {expr, Left, Op, Right} ->
       {expr, solve_for_humn(Left, Map), Op, solve_for_humn(Right, Map)}
   end.
